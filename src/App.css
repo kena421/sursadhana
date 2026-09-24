@@ -2707,9 +2707,8 @@ kbd {
 /* Arena Top Controls Bar */
 .arena-top-controls-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   width: 100%;
 }
@@ -2717,6 +2716,7 @@ kbd {
 .arena-stage-status {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -3319,4 +3319,166 @@ kbd {
   font-weight: 800;
   color: var(--text-primary);
 }
+
+/* Padhanisa-Style Subtitles Card */
+.highway-subtitles-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(10, 14, 23, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.subtitle-main-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.subtitle-active-syllable {
+  font-family: var(--font-primary);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
+}
+
+.subtitle-active-syllable.gold-theme {
+  color: #FBBF24;
+  text-shadow: 0 0 16px rgba(245, 158, 11, 0.6);
+}
+
+.subtitle-active-syllable.green-theme {
+  color: #22C55E;
+  text-shadow: 0 0 20px rgba(34, 197, 94, 0.7);
+}
+
+.subtitle-active-syllable.orange-theme {
+  color: #FF7A00;
+  text-shadow: 0 0 16px rgba(255, 122, 0, 0.5);
+}
+
+.subtitle-devanagari {
+  font-family: var(--font-devanagari);
+  font-size: 16px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.subtitle-hint-pill {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pill-gold {
+  color: #FBBF24;
+  background: rgba(245, 158, 11, 0.12);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.pill-green {
+  color: #22C55E;
+  background: rgba(34, 197, 94, 0.12);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.pill-blue {
+  color: #38BDF8;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+/* Padhanisa-Style Scrubber Track (Matching Screenshot) */
+.padhanisa-scrubber-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px 12px 16px;
+  background: rgba(10, 14, 23, 0.85);
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.scrubber-time {
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 32px;
+}
+
+.scrubber-time.total {
+  text-align: right;
+}
+
+.scrubber-bar-container {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  position: relative;
+  overflow: visible;
+}
+
+.scrubber-fill-bar {
+  height: 100%;
+  background: #EF4444; /* Padhanisa Red Progress Bar */
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  transition: width 0.05s linear;
+}
+
+.scrubber-knob {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: #EF4444; /* Padhanisa Red Scrub Dot */
+  border: 2px solid #FFFFFF;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+  pointer-events: none;
+  transition: left 0.05s linear;
+}
+
+.scrubber-round-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #FBBF24;
+  background: rgba(245, 158, 11, 0.15);
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Non-blocking Floating Toast */
+.highway-floating-toast {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1.5px solid #22C55E;
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35);
+  color: #FFFFFF;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 
