@@ -3114,3 +3114,209 @@ kbd {
 .item-trend.flat { color: #FBBF24; }
 .item-trend.sharp { color: #F87171; }
 
+/* Config Cluster (Voice, Rounds, Hold) */
+.arena-config-cluster {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.config-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voice-select-dropdown {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voice-select-dropdown:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-highlight);
+}
+
+.voice-select-dropdown option {
+  background: #0F172A;
+  color: #F8FAFC;
+}
+
+/* Stage Pill Transition */
+.stage-pill.transition {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10B981;
+  color: #34D399;
+}
+
+.round-next-spinner {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--gold-bright);
+  text-shadow: 0 0 24px var(--gold-glow);
+}
+
+/* Live Vocal Level Meter (VU Meter) */
+.live-vocal-meter-card {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.meter-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.meter-percent {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.meter-led-bar-track {
+  display: flex;
+  gap: 3px;
+  height: 12px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 3px;
+  border-radius: 4px;
+}
+
+.meter-segment {
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.04s ease;
+}
+
+.meter-segment.lit-gold {
+  background: #F59E0B;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.9);
+}
+
+.meter-segment.lit-green {
+  background: #10B981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.9);
+}
+
+.meter-segment.lit-amber {
+  background: #FBBF24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.9);
+}
+
+.meter-segment.lit-red {
+  background: #EF4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.9);
+}
+
+.meter-footer-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.meter-footer-hint .warning-text {
+  color: #F87171;
+  font-weight: 600;
+}
+
+.meter-footer-hint .success-text {
+  color: #34D399;
+  font-weight: 600;
+}
+
+/* Multi-Round Progress Card in Analysis */
+.multi-round-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.round-progress-grid {
+  display: flex;
+  gap: 16px;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 140px;
+  padding: 12px 10px 4px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-md);
+}
+
+.round-progress-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  height: 100%;
+}
+
+.round-col-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.round-meter-vertical {
+  flex: 1;
+  width: 32px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border: 1px solid var(--border-subtle);
+}
+
+.round-meter-fill {
+  width: 100%;
+  border-radius: 16px;
+  transition: height 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.round-score-text {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+

@@ -27,6 +27,7 @@ interface NoteHighwayCanvasProps {
   stage: 'idle' | 'demo' | 'countdown' | 'singing' | 'analysis';
   isHitActive: boolean; // true when user is matching pitch or guru is playing
   activeRemainingSec?: number; // duration remaining on current note
+  audioLevel?: number; // 0 to 1 live volume level of singing voice
 }
 
 export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
@@ -35,6 +36,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
   exerciseStartTimeMs,
   stage,
   isHitActive,
+  audioLevel = 0,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const particlesRef = useRef<Particle[]>([]);
@@ -320,26 +322,75 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       ctx.fillText(stage === 'singing' ? 'SING HERE' : stage === 'demo' ? 'GURU SINGS' : 'PLAYHEAD', playheadX, 22);
       ctx.restore();
 
-      // 7. Live Vocal Cursor Dot on Playhead
+      // 7a. Guru Acoustic Vocal Wave on Playhead (during demo)
+      if (stage === 'demo' && isHitActive && activeCrossingBlock) {
+        const swaraIdx = SWARAS.findIndex(s => s.id === (activeCrossingBlock as HighwayTargetBlock).swaraId);
+        if (swaraIdx !== -1) {
+          const laneY = (totalLanes - 1 - swaraIdx) * laneHeight;
+          const centerY = laneY + laneHeight * 0.5;
+          const lvl = Math.max(0.15, audioLevel || 0.65);
+
+          ctx.save();
+          // Radiating acoustic soundwave rings
+          ctx.strokeStyle = `rgba(245, 158, 11, ${0.3 + lvl * 0.6})`;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(playheadX, centerY, 8 + lvl * 20, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Vocal glowing core
+          ctx.fillStyle = '#F59E0B';
+          ctx.shadowBlur = 22;
+          ctx.shadowColor = '#FBBF24';
+          ctx.beginPath();
+          ctx.arc(playheadX, centerY, 7 + lvl * 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.arc(playheadX, centerY, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Vocal frequency & volume level badge
+          ctx.font = 'bold 11px "Outfit", sans-serif';
+          ctx.fillStyle = '#FBBF24';
+          ctx.textAlign = 'left';
+          ctx.fillText(`🎙️ Guru Voice: ${(lvl * 100).toFixed(0)}%`, playheadX + 18, centerY + 4);
+          ctx.restore();
+        }
+      }
+
+      // 7b. Live Vocal Cursor Dot on Playhead (during singing)
       if (stage === 'singing' && currentPitch) {
         const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
         const basePos = swaraIndex !== -1 ? swaraIndex : 0;
         const currentPos = basePos + currentPitch.centsDeviation / 100;
         const dotY = height - (currentPos + 0.5) * laneHeight;
+        const userVol = Math.max(0.15, audioLevel || (currentPitch.clarity * 0.7));
+        const dotRadius = 7 + userVol * 9;
 
         ctx.save();
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = currentPitch.isInSur ? '#10B981' : '#F59E0B';
         ctx.fillStyle = currentPitch.isInSur ? '#10B981' : '#F59E0B';
 
         ctx.beginPath();
-        ctx.arc(playheadX, dotY, 9, 0, Math.PI * 2);
+        ctx.arc(playheadX, dotY, dotRadius, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(playheadX, dotY, 4, 0, Math.PI * 2);
         ctx.fill();
+
+        // Radiating pulse ring when matching pure sur
+        if (currentPitch.isInSur) {
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.65)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(playheadX, dotY, dotRadius + 7, 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
         // Guidance text badge next to cursor
         if (activeCrossingBlock) {
@@ -351,13 +402,13 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
 
           if (Math.abs(diffSemitones) <= 0.35 && currentPitch.isInSur) {
             ctx.fillStyle = '#34D399';
-            ctx.fillText('✨ PERFECT SUR!', playheadX + 15, dotY + 4);
+            ctx.fillText(`✨ IN SUR (${(userVol * 100).toFixed(0)}%)`, playheadX + 16, dotY + 4);
           } else if (diffSemitones < -0.2) {
             ctx.fillStyle = '#FBBF24';
-            ctx.fillText('▲ Sing Higher', playheadX + 15, dotY + 4);
+            ctx.fillText('▲ Sing Higher', playheadX + 16, dotY + 4);
           } else if (diffSemitones > 0.2) {
             ctx.fillStyle = '#FBBF24';
-            ctx.fillText('▼ Sing Lower', playheadX + 15, dotY + 4);
+            ctx.fillText('▼ Sing Lower', playheadX + 16, dotY + 4);
           }
         }
         ctx.restore();
@@ -444,7 +495,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         cancelAnimationFrame(animRef.current);
       }
     };
-  }, [stage, exerciseStartTimeMs, targetBlocks, isHitActive, currentPitch]);
+  }, [stage, exerciseStartTimeMs, targetBlocks, isHitActive, currentPitch, audioLevel]);
 
   return (
     <div className="highway-canvas-container">
