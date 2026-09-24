@@ -19,7 +19,9 @@ class GuruVocalService {
   public async playDemonstration(
     notes: LessonNote[],
     baseSaFrequency: number,
-    onComplete: () => void
+    onComplete: () => void,
+    initialDelayMs: number = 1000,
+    gapMs: number = 350
   ): Promise<void> {
     this.stop();
 
@@ -33,7 +35,7 @@ class GuruVocalService {
       }
 
       this.isDemonstrating = true;
-      let cumulativeTimeMs = 300; // brief pause before starting
+      let cumulativeTimeMs = initialDelayMs;
 
       notes.forEach((note, idx) => {
         // Schedule visual callback
@@ -50,7 +52,7 @@ class GuruVocalService {
         }, cumulativeTimeMs);
         this.currentTimeoutIds.push(audioPlayTimeout);
 
-        cumulativeTimeMs += note.durationSec * 1000 + 200; // note duration + small breath gap
+        cumulativeTimeMs += note.durationSec * 1000 + gapMs; // note duration + gap
       });
 
       // Schedule completion
@@ -59,7 +61,7 @@ class GuruVocalService {
         this.isDemonstrating = false;
         this.onNoteCallbacks.forEach(cb => cb(-1, null));
         onComplete();
-      }, cumulativeTimeMs + 200);
+      }, cumulativeTimeMs + 100);
       this.currentTimeoutIds.push(completeTimeout);
 
     } catch (e) {
