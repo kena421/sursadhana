@@ -1,7 +1,7 @@
 import React from 'react';
-import { Mic, Music2, Volume2, Award, Target } from 'lucide-react';
+import { Mic, Headphones, Music2, Volume2, Award, Target } from 'lucide-react';
 
-export type ActiveTab = 'studio' | 'tanpura' | 'taal' | 'alankars' | 'calibrator';
+export type ActiveTab = 'studio' | 'practice' | 'alankars' | 'tanpura' | 'taal' | 'calibrator';
 
 interface NavigationProps {
   activeTab: ActiveTab;
@@ -20,10 +20,11 @@ export const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'studio' as ActiveTab, label: 'Studio (रियाज़)', icon: <Mic size={18} />, badge: isMicActive ? 'MIC ON' : undefined },
-    { id: 'tanpura' as ActiveTab, label: 'Tanpura (तानपूरा)', icon: <Music2 size={18} />, badge: isTanpuraActive ? 'PLAYING' : undefined },
-    { id: 'taal' as ActiveTab, label: 'Taal (ताल-ठेका)', icon: <Volume2 size={18} />, badge: isTaalActive ? 'BEAT' : undefined },
+    { id: 'practice' as ActiveTab, label: 'Listen & Sing (पाठ)', icon: <Headphones size={18} /> },
     { id: 'alankars' as ActiveTab, label: 'Alankars (अलंकार)', icon: <Award size={18} /> },
-    { id: 'calibrator' as ActiveTab, label: 'Scale Finder (स्केल)', icon: <Target size={18} /> },
+    { id: 'tanpura' as ActiveTab, label: 'Tanpura (तानपूरा)', icon: <Music2 size={18} />, badge: isTanpuraActive ? 'PLAYING' : undefined },
+    { id: 'taal' as ActiveTab, label: 'Taal (ताल)', icon: <Volume2 size={18} />, badge: isTaalActive ? 'BEAT' : undefined },
+    { id: 'calibrator' as ActiveTab, label: 'Scale (स्केल)', icon: <Target size={18} /> },
   ];
 
   return (

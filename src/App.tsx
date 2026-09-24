@@ -11,6 +11,7 @@ import { PitchCanvas } from './components/PitchCanvas';
 import { TanpuraPanel } from './components/TanpuraPanel';
 import { TaalPanel } from './components/TaalPanel';
 import { AlankarTrainer } from './components/AlankarTrainer';
+import { GuruLessonPractice } from './components/GuruLessonPractice';
 import { ScaleCalibrator } from './components/ScaleCalibrator';
 import { Navigation } from './components/Navigation';
 import type { ActiveTab } from './components/Navigation';
@@ -127,12 +128,14 @@ export const App: React.FC = () => {
       } else if (e.key === '1') {
         setActiveTab('studio');
       } else if (e.key === '2') {
-        setActiveTab('tanpura');
+        setActiveTab('practice');
       } else if (e.key === '3') {
-        setActiveTab('taal');
-      } else if (e.key === '4') {
         setActiveTab('alankars');
+      } else if (e.key === '4') {
+        setActiveTab('tanpura');
       } else if (e.key === '5') {
+        setActiveTab('taal');
+      } else if (e.key === '6') {
         setActiveTab('calibrator');
       }
     };
@@ -231,6 +234,17 @@ export const App: React.FC = () => {
             <div className="studio-canvas-row">
               <PitchCanvas currentPitch={detectedPitch} />
             </div>
+          </div>
+        )}
+
+        {activeTab === 'practice' && (
+          <div className="tab-view-wrapper">
+            <GuruLessonPractice
+              currentPitch={detectedPitch}
+              rootPitch={rootPitch}
+              isMicActive={isMicActive}
+              onStartMic={handleToggleMic}
+            />
           </div>
         )}
 

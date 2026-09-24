@@ -274,3 +274,136 @@ export const COMMON_SCALE_PRESETS = [
   { label: 'Female Low (G3 / Safed Char)', note: 'G' as RootNoteName, octave: 3 },
   { label: 'Deep Kharaj (A2)', note: 'A' as RootNoteName, octave: 2 },
 ];
+
+export interface LessonNote {
+  swaraId: string;
+  durationSec: number;
+  label: string;
+}
+
+export interface PracticeLesson {
+  id: string;
+  title: string;
+  hindiTitle: string;
+  category: 'single_swara' | 'intervals' | 'combinations' | 'vikrit';
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
+  description: string;
+  instructions: string;
+  targetNotes: LessonNote[];
+}
+
+export interface RecordedPitchPoint {
+  timeSec: number;
+  frequency: number;
+  centsDeviation: number;
+  isInSur: boolean;
+  swaraId: string;
+}
+
+export interface PerformanceAnalysis {
+  accuracyScore: number; // 0 to 100%
+  stabilityScore: number; // 0 to 100%
+  averageCentsDeviation: number; // e.g. +3.2 or -8.5
+  centsTrend: 'centered' | 'sharp' | 'flat';
+  totalSingingTimeSec: number;
+  timeInSurSec: number;
+  feedbackHindi: string;
+  feedbackEnglish: string;
+  points: RecordedPitchPoint[];
+}
+
+export const PRACTICE_LESSONS: PracticeLesson[] = [
+  {
+    id: 'lesson_sa',
+    title: 'Mastering "Sa" (केवल "सा" साधना)',
+    hindiTitle: 'षड्ज (सा) स्थिरता साधना',
+    category: 'single_swara',
+    level: 'Beginner',
+    description: 'The foundation of all Indian Classical music. Listen to Sa, then sing and hold your pure Sa.',
+    instructions: '1. Listen to the app sing Sa. 2. When prompted, take a deep breath and sing "Saaa" steadily for 4 seconds.',
+    targetNotes: [
+      { swaraId: 'S', durationSec: 4.5, label: 'सा' }
+    ]
+  },
+  {
+    id: 'lesson_pa',
+    title: 'Mastering "Pa" (केवल "प" साधना - पंचम)',
+    hindiTitle: 'पंचम (प) सुर साधना',
+    category: 'single_swara',
+    level: 'Beginner',
+    description: 'The natural harmonic fifth (3/2 ratio). Perfectly stable achala swara that creates celestial harmony.',
+    instructions: 'Listen to the harmonic frequency of Pa, then align your voice to hit the exact center of Pancham.',
+    targetNotes: [
+      { swaraId: 'P', durationSec: 4.5, label: 'प' }
+    ]
+  },
+  {
+    id: 'lesson_sa_re',
+    title: 'Two-Step Step: Sa to Re (सा और रे)',
+    hindiTitle: 'सा से रे का सफर',
+    category: 'intervals',
+    level: 'Beginner',
+    description: 'Learn the smooth transition from base Sa to Shuddha Re (9/8 ratio).',
+    instructions: 'App will sing Sa then Re. In your turn, sing Sa for 2.5s and smoothly transition to Re for 2.5s.',
+    targetNotes: [
+      { swaraId: 'S', durationSec: 2.5, label: 'सा' },
+      { swaraId: 'R', durationSec: 2.5, label: 'रे' }
+    ]
+  },
+  {
+    id: 'lesson_sa_re_ga',
+    title: 'Triad Steps: Sa - Re - Ga (सा-रे-ग त्रयी)',
+    hindiTitle: 'सा-रे-ग का आरोह',
+    category: 'combinations',
+    level: 'Beginner',
+    description: 'Master the opening three notes of Bilawal and Kalyan that define classical vocal ascent.',
+    instructions: 'Listen to the 3 notes, then sing Sa, Re, and Ga consecutively without rushing.',
+    targetNotes: [
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'R', durationSec: 2.0, label: 'रे' },
+      { swaraId: 'G', durationSec: 2.5, label: 'ग' }
+    ]
+  },
+  {
+    id: 'lesson_sa_pa_leap',
+    title: 'The Great Leap: Sa to Pa (सा-प की छलांग)',
+    hindiTitle: 'षड्ज-पंचम संवाद',
+    category: 'intervals',
+    level: 'Intermediate',
+    description: 'Train your vocal muscle memory to leap directly across the fifth interval without sliding.',
+    instructions: 'App sings Sa then leaps directly to Pa and returns to Sa. Follow the demonstration.',
+    targetNotes: [
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'P', durationSec: 2.5, label: 'प' },
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
+    ]
+  },
+  {
+    id: 'lesson_komal_re',
+    title: 'Bhairav Mode: Komal Re (कोमल रे॒ साधना)',
+    hindiTitle: 'कोमल ऋषभ (रे॒) साधना',
+    category: 'vikrit',
+    level: 'Intermediate',
+    description: 'Learn the haunting, delicate 16/15 ratio of Komal Re just above Sa, the soul of Raga Bhairav.',
+    instructions: 'Notice how close Komal Re is to Sa. Do not sing it too high as Shuddha Re.',
+    targetNotes: [
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'r', durationSec: 3.0, label: 'रे॒' },
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
+    ]
+  },
+  {
+    id: 'lesson_teevra_ma',
+    title: 'Yaman Mode: Teevra Ma (तीव्र म॑ साधना)',
+    hindiTitle: 'तीव्र मध्यम (म॑) साधना',
+    category: 'vikrit',
+    level: 'Advanced',
+    description: 'The sharp fourth (45/32 ratio) that illuminates evening ragas like Yaman and Marwa.',
+    instructions: 'App demonstrates Sa -> Teevra Ma -> Pa. Sing each note firmly on the target.',
+    targetNotes: [
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'M', durationSec: 3.0, label: 'म॑' },
+      { swaraId: 'P', durationSec: 2.5, label: 'प' }
+    ]
+  }
+];
