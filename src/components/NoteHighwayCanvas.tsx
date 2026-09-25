@@ -1,6 +1,7 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { SWARAS } from '../types/music';
-import type { DetectedPitch } from '../types/music';
+import type { DetectedPitch, RecordedPitchPoint, HighwayTargetBlock } from '../types/music';
+export type { HighwayTargetBlock };
 
 interface Particle {
   x: number;
@@ -13,14 +14,6 @@ interface Particle {
   life: number;
 }
 
-export interface HighwayTargetBlock {
-  swaraId: string;
-  startTimeSec: number; // time relative to exercise start
-  durationSec: number;
-  label: string;
-  type: 'assisted' | 'user'; // 'assisted' = Guru guide (Saffron/Gold), 'user' = User singing (Padhanisa Orange/Cyan)
-}
-
 interface NoteHighwayCanvasProps {
   currentPitch: DetectedPitch | null;
   targetBlocks: HighwayTargetBlock[];
@@ -31,6 +24,12 @@ interface NoteHighwayCanvasProps {
   audioLevel?: number; // 0 to 1 live volume level of singing voice
   totalRoundSec?: number;
   isUserTurn?: boolean; // only plot user mic when it is user's turn (avoids speaker echo)
+
+  // Scrollback & Review Mode Props
+  isReviewMode?: boolean;
+  reviewElapsedSec?: number;
+  recordedPoints?: RecordedPitchPoint[];
+  onScrubTime?: (sec: number) => void;
 }
 
 export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
@@ -41,14 +40,26 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
   isHitActive,
   audioLevel = 0,
   isUserTurn = false,
+  isReviewMode = false,
+  reviewElapsedSec = 0,
+  recordedPoints = [],
+  onScrubTime,
+  totalRoundSec = 10,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const userPitchTrailRef = useRef<{ timeMs: number; semitonePos: number; isInSur: boolean }[]>([]);
   const animRef = useRef<number | null>(null);
 
-  // Keep user pitch trail updated ONLY during user's turn to prevent speaker feedback
+  // Mouse / Touch Dragging State for Direct Canvas Scrubbing
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const dragStartXRef = useRef<number>(0);
+  const dragStartTimeRef = useRef<number>(0);
+
+  // Keep live user pitch trail updated ONLY during live user's turn
   useEffect(() => {
+    if (isReviewMode) return;
+
     if (stage === 'practicing' && isUserTurn && currentPitch) {
       const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
       const basePos = swaraIndex !== -1 ? swaraIndex : 0;
@@ -60,17 +71,17 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         isInSur: currentPitch.isInSur,
       });
 
-      // Keep last 8 seconds of pitch history
+      // Keep last 8 seconds of pitch history in live view
       const cutoff = performance.now() - 8000;
       userPitchTrailRef.current = userPitchTrailRef.current.filter(p => p.timeMs > cutoff);
     } else if (stage === 'idle' || !isUserTurn) {
-      // Clear trail when transitioning to prevent old or echo points
       if (!isUserTurn) {
         userPitchTrailRef.current = [];
       }
     }
-  }, [currentPitch, stage, isUserTurn]);
+  }, [currentPitch, stage, isUserTurn, isReviewMode]);
 
+  // Main Canvas Rendering Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -127,9 +138,15 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.stroke();
       }
 
-      // Vertical Measure Beat Lines (Dividers every 250px)
+      // Elapsed Time for Scroll Calculation
       const now = performance.now();
-      const elapsedSec = exerciseStartTimeMs !== null ? (now - exerciseStartTimeMs) / 1000 : 0;
+      const elapsedSec = isReviewMode
+        ? reviewElapsedSec
+        : exerciseStartTimeMs !== null
+        ? (now - exerciseStartTimeMs) / 1000
+        : 0;
+
+      // Vertical Measure Beat Lines (Dividers every 100px)
       const beatSpacingPx = 100;
       const beatOffset = (elapsedSec * pixelsPerSec) % beatSpacingPx;
 
@@ -147,18 +164,22 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       leftSpotlight.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
       leftSpotlight.addColorStop(1, 'rgba(255, 255, 255, 0.06)');
       ctx.fillStyle = leftSpotlight;
-      ctx.fillRect(Math.max(sidebarWidth, playheadX - 140), 0, playheadX - Math.max(sidebarWidth, playheadX - 140), height);
+      ctx.fillRect(
+        Math.max(sidebarWidth, playheadX - 140),
+        0,
+        playheadX - Math.max(sidebarWidth, playheadX - 140),
+        height
+      );
 
       let activeCrossingBlock: HighwayTargetBlock | null = null;
-      let activeRemainingSec = 0;
+      let activeRemaining = 0;
 
-      // 4. Draw Connecting Melody Step Lines (as seen in Padhanisa screenshot)
+      // 4. Draw Connecting Melody Step Lines
       if (targetBlocks.length > 1) {
         for (let i = 0; i < targetBlocks.length - 1; i++) {
           const b1 = targetBlocks[i];
           const b2 = targetBlocks[i + 1];
 
-          // Only connect blocks of the same phase (e.g. assisted to assisted, or user to user)
           if (b1.type === b2.type) {
             const idx1 = SWARAS.findIndex(s => s.id === b1.swaraId);
             const idx2 = SWARAS.findIndex(s => s.id === b2.swaraId);
@@ -171,7 +192,11 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
 
               if (x2 > sidebarWidth && x1 < width) {
                 ctx.save();
-                ctx.strokeStyle = b1.type === 'assisted' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 122, 0, 0.25)';
+                ctx.strokeStyle = isReviewMode
+                  ? 'rgba(255, 122, 0, 0.35)'
+                  : b1.type === 'assisted'
+                  ? 'rgba(245, 158, 11, 0.25)'
+                  : 'rgba(255, 122, 0, 0.25)';
                 ctx.lineWidth = 1.5;
                 ctx.setLineDash([4, 4]);
                 ctx.beginPath();
@@ -186,7 +211,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         }
       }
 
-      // 5. Draw Target Note Bars (Padhanisa Stepped Bars)
+      // 5. Draw Target Note Bars (Expected Swara Blocks)
       if (targetBlocks.length > 0) {
         for (const block of targetBlocks) {
           const swaraIdx = SWARAS.findIndex(s => s.id === block.swaraId);
@@ -202,7 +227,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
           const isCrossingPlayhead = blockFrontX <= playheadX && blockBackX >= playheadX;
           if (isCrossingPlayhead) {
             activeCrossingBlock = block;
-            activeRemainingSec = Math.max(0, (blockBackX - playheadX) / pixelsPerSec);
+            activeRemaining = Math.max(0, (blockBackX - playheadX) / pixelsPerSec);
           }
 
           // Only render if visible in viewport
@@ -214,15 +239,28 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
             if (rw > 0) {
               ctx.save();
               ctx.beginPath();
-              // Rounded horizontal bar matching Padhanisa
-              ctx.roundRect(rx, laneY + 5, rw, laneHeight - 10, 5);
+              ctx.roundRect(rx, laneY + 5, rw, laneHeight - 10, 6);
 
-              if (isAssisted) {
-                // ==========================================
-                // ASSISTED (GURU) NOTE: ROYAL SAFFRON / GOLD
-                // ==========================================
+              if (isReviewMode) {
+                // REVIEW MODE: Expected note bar with elegant amber outline
                 if (isCrossingPlayhead) {
-                  // Active Guru Singing: Golden Luminous Glow
+                  ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+                  ctx.fill();
+                  ctx.strokeStyle = '#F59E0B';
+                  ctx.lineWidth = 2.5;
+                  ctx.shadowBlur = 14;
+                  ctx.shadowColor = '#F59E0B';
+                  ctx.stroke();
+                } else {
+                  ctx.fillStyle = 'rgba(255, 122, 0, 0.15)';
+                  ctx.fill();
+                  ctx.strokeStyle = 'rgba(255, 122, 0, 0.7)';
+                  ctx.lineWidth = 1.6;
+                  ctx.stroke();
+                }
+              } else if (isAssisted) {
+                // ASSISTED (GURU) NOTE
+                if (isCrossingPlayhead) {
                   ctx.shadowBlur = 18;
                   ctx.shadowColor = '#F59E0B';
                   ctx.fillStyle = '#F59E0B';
@@ -231,7 +269,6 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                   ctx.lineWidth = 2.5;
                   ctx.stroke();
                 } else {
-                  // Approaching Guru Note: Warm Amber Bar
                   ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
                   ctx.fill();
                   ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
@@ -239,12 +276,9 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                   ctx.stroke();
                 }
               } else {
-                // ==========================================
-                // USER (YOU) NOTE: PADHANISA ORANGE & GREEN
-                // ==========================================
+                // LIVE USER (YOU) NOTE: PADHANISA ORANGE & GREEN
                 if (isCrossingPlayhead) {
                   if (isHitActive) {
-                    // Match! Pure Green (matching Padhanisa screenshot green hit bar!)
                     ctx.shadowBlur = 22;
                     ctx.shadowColor = '#22C55E';
                     ctx.fillStyle = '#22C55E';
@@ -253,7 +287,6 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                     ctx.lineWidth = 2.5;
                     ctx.stroke();
                   } else {
-                    // Active Singing (Orange bar)
                     ctx.shadowBlur = 16;
                     ctx.shadowColor = '#FF7A00';
                     ctx.fillStyle = '#FF7A00';
@@ -263,7 +296,6 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                     ctx.stroke();
                   }
                 } else {
-                  // Approaching User Note: Bold Tangerine Orange Bar
                   ctx.fillStyle = 'rgba(255, 122, 0, 0.32)';
                   ctx.fill();
                   ctx.strokeStyle = 'rgba(255, 122, 0, 0.85)';
@@ -273,8 +305,8 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
               }
               ctx.restore();
 
-              // If crossing playhead, draw progress fill / past portion outline
-              if (isCrossingPlayhead && playheadX > rx) {
+              // If crossing playhead in live mode, draw progress fill
+              if (!isReviewMode && isCrossingPlayhead && playheadX > rx) {
                 const filledWidth = Math.min(rw, playheadX - rx);
                 ctx.save();
                 ctx.beginPath();
@@ -296,7 +328,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                 ctx.font = 'bold 11px "Outfit", sans-serif';
                 ctx.fillStyle = '#FFFFFF';
 
-                const rolePrefix = isAssisted ? '🎧 GURU' : '🎤 YOU';
+                const rolePrefix = isReviewMode ? '🎯 EXPECTED' : isAssisted ? '🎧 GURU' : '🎤 YOU';
                 if (isCrossingPlayhead) {
                   ctx.fillText(`${rolePrefix} • ${block.label}`, labelX, laneY + laneHeight * 0.65);
                 } else {
@@ -306,26 +338,115 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
               ctx.restore();
             }
 
-            // Spawn spark particles on hit
-            const shouldSpark = isCrossingPlayhead && (isAssisted || isHitActive);
-            if (shouldSpark && Math.random() < 0.6) {
-              particlesRef.current.push({
-                x: playheadX,
-                y: laneY + laneHeight * 0.5 + (Math.random() * 12 - 6),
-                vx: -(Math.random() * 2 + 1),
-                vy: (Math.random() - 0.5) * 2,
-                size: Math.random() * 3 + 2,
-                color: isAssisted ? '#FBBF24' : isHitActive ? '#22C55E' : '#FF7A00',
-                alpha: 1,
-                life: 28,
-              });
+            // Spawn spark particles on hit (live mode only)
+            if (!isReviewMode) {
+              const shouldSpark = isCrossingPlayhead && (isAssisted || isHitActive);
+              if (shouldSpark && Math.random() < 0.6) {
+                particlesRef.current.push({
+                  x: playheadX,
+                  y: laneY + laneHeight * 0.5 + (Math.random() * 12 - 6),
+                  vx: -(Math.random() * 2 + 1),
+                  vy: (Math.random() - 0.5) * 2,
+                  size: Math.random() * 3 + 2,
+                  color: isAssisted ? '#FBBF24' : isHitActive ? '#22C55E' : '#FF7A00',
+                  alpha: 1,
+                  life: 28,
+                });
+              }
             }
           }
         }
       }
 
-      // 6. Draw User's Continuous Vocal Pitch Trail (Curve on Left of Playhead, as seen in screenshot)
-      if (stage !== 'idle' && isUserTurn && userPitchTrailRef.current.length > 1) {
+      // =========================================================================
+      // 6. DRAW USER VOCAL PITCH TRAIL (RECORDED SUNG CURVE)
+      // =========================================================================
+      if (isReviewMode) {
+        // ==========================================================
+        // REVIEW MODE: RENDER ENTIRE RECORDED PITCH CURVE
+        // ==========================================================
+        if (recordedPoints && recordedPoints.length > 0) {
+          ctx.save();
+
+          // Group consecutive points where time difference <= 0.18s
+          const segments: RecordedPitchPoint[][] = [];
+          let curSeg: RecordedPitchPoint[] = [];
+
+          for (let i = 0; i < recordedPoints.length; i++) {
+            const pt = recordedPoints[i];
+            if (curSeg.length === 0) {
+              curSeg.push(pt);
+            } else {
+              const prev = curSeg[curSeg.length - 1];
+              if (pt.timeSec - prev.timeSec <= 0.18) {
+                curSeg.push(pt);
+              } else {
+                segments.push(curSeg);
+                curSeg = [pt];
+              }
+            }
+          }
+          if (curSeg.length > 0) segments.push(curSeg);
+
+          // Draw segments
+          for (const seg of segments) {
+            if (seg.length < 2) continue;
+
+            for (let i = 0; i < seg.length - 1; i++) {
+              const p1 = seg[i];
+              const p2 = seg[i + 1];
+
+              const x1 = playheadX + (p1.timeSec - elapsedSec) * pixelsPerSec;
+              const x2 = playheadX + (p2.timeSec - elapsedSec) * pixelsPerSec;
+
+              // Cull off-screen points
+              if ((x1 < sidebarWidth && x2 < sidebarWidth) || (x1 > width && x2 > width)) continue;
+
+              const pos1 =
+                p1.semitonePos !== undefined
+                  ? p1.semitonePos
+                  : SWARAS.findIndex(s => s.id === p1.swaraId) + p1.centsDeviation / 100;
+              const pos2 =
+                p2.semitonePos !== undefined
+                  ? p2.semitonePos
+                  : SWARAS.findIndex(s => s.id === p2.swaraId) + p2.centsDeviation / 100;
+
+              const y1 = height - (pos1 + 0.5) * laneHeight;
+              const y2 = height - (pos2 + 0.5) * laneHeight;
+
+              // Color-coded intonation:
+              // Pure Green = in sur (±15 cents)
+              // Amber = sharp (> +15 cents)
+              // Cyan = flat (< -15 cents)
+              const isInSur = p1.isInSur || p2.isInSur;
+              const avgDev = (p1.centsDeviation + p2.centsDeviation) / 2;
+              const strokeColor = isInSur ? '#22C55E' : avgDev > 15 ? '#F59E0B' : '#06B6D4';
+
+              ctx.beginPath();
+              ctx.strokeStyle = strokeColor;
+              ctx.lineWidth = 4;
+              ctx.lineCap = 'round';
+              ctx.shadowBlur = 10;
+              ctx.shadowColor = strokeColor;
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+
+              // Point dots for microtonal precision
+              ctx.beginPath();
+              ctx.fillStyle = '#FFFFFF';
+              ctx.shadowBlur = 4;
+              ctx.shadowColor = strokeColor;
+              ctx.arc(x1, y1, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
+      } else if (stage !== 'idle' && isUserTurn && userPitchTrailRef.current.length > 1) {
+        // ==========================================================
+        // LIVE MODE: RENDER RECENT 8s PITCH TRAIL
+        // ==========================================================
         ctx.save();
         ctx.beginPath();
 
@@ -353,7 +474,6 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
           }
         }
 
-        // Color matches Padhanisa: Bright Green when in Sur, Orange/Red when transitioning!
         const isCurrentlyInSur = currentPitch?.isInSur ?? false;
         ctx.shadowBlur = 12;
         ctx.shadowColor = isCurrentlyInSur ? '#22C55E' : '#FF7A00';
@@ -365,34 +485,46 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.restore();
       }
 
-      // 7. Hit Spark Particles
-      const particles = particlesRef.current;
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha -= 1 / p.life;
+      // 7. Hit Spark Particles (Live mode)
+      if (!isReviewMode) {
+        const particles = particlesRef.current;
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.alpha -= 1 / p.life;
 
-        if (p.alpha <= 0) {
-          particles.splice(i, 1);
-          continue;
+          if (p.alpha <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          ctx.save();
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
         }
-
-        ctx.save();
-        ctx.globalAlpha = p.alpha;
-        ctx.fillStyle = p.color;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
       }
 
-      // 8. Vertical Target Playhead (Beam Line)
-      const isAssistedCrossing = activeCrossingBlock?.type === 'assisted';
-      const isUserCrossing = activeCrossingBlock?.type === 'user';
-      const playheadColor = isAssistedCrossing ? '#F59E0B' : (isUserCrossing && isHitActive) ? '#22C55E' : isUserCrossing ? '#FF7A00' : 'rgba(255, 255, 255, 0.4)';
+      // =========================================================================
+      // 8. VERTICAL TARGET PLAYHEAD & INSPECTOR BEAM
+      // =========================================================================
+      const isAssistedCrossing = !isReviewMode && activeCrossingBlock?.type === 'assisted';
+      const isUserCrossing = !isReviewMode && activeCrossingBlock?.type === 'user';
+      const playheadColor = isReviewMode
+        ? '#38BDF8'
+        : isAssistedCrossing
+        ? '#F59E0B'
+        : isUserCrossing && isHitActive
+        ? '#22C55E'
+        : isUserCrossing
+        ? '#FF7A00'
+        : 'rgba(255, 255, 255, 0.4)';
 
       ctx.save();
       ctx.shadowBlur = 14;
@@ -417,53 +549,100 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       ctx.font = 'bold 9px "Outfit", sans-serif';
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
-      const playheadBadge = isAssistedCrossing ? 'GURU' : isUserCrossing ? 'YOU' : 'READY';
+      const playheadBadge = isReviewMode ? 'REVIEW' : isAssistedCrossing ? 'GURU' : isUserCrossing ? 'YOU' : 'READY';
       ctx.fillText(playheadBadge, playheadX, 22);
       ctx.restore();
 
-      // 9a. Guru Acoustic Soundwaves on Playhead (during assisted guide)
-      if (isAssistedCrossing && activeCrossingBlock) {
-        const swaraIdx = SWARAS.findIndex(s => s.id === (activeCrossingBlock as HighwayTargetBlock).swaraId);
-        if (swaraIdx !== -1) {
-          const laneY = (totalLanes - 1 - swaraIdx) * laneHeight;
-          const centerY = laneY + laneHeight * 0.5;
-          const lvl = Math.max(0.2, audioLevel || 0.65);
+      // =========================================================================
+      // 9. REVIEW MODE: EXACT EXPECTED VS RECORDED PLAYHEAD INSPECTION
+      // =========================================================================
+      if (isReviewMode) {
+        // Find nearest recorded pitch point at playhead time (within ±0.15s)
+        const recordedAtPlayhead = (recordedPoints || []).find(
+          p => Math.abs(p.timeSec - elapsedSec) <= 0.15
+        );
 
+        if (recordedAtPlayhead) {
+          const recPos =
+            recordedAtPlayhead.semitonePos !== undefined
+              ? recordedAtPlayhead.semitonePos
+              : SWARAS.findIndex(s => s.id === recordedAtPlayhead.swaraId) +
+                recordedAtPlayhead.centsDeviation / 100;
+          const recY = height - (recPos + 0.5) * laneHeight;
+
+          const dotColor = recordedAtPlayhead.isInSur
+            ? '#22C55E'
+            : recordedAtPlayhead.centsDeviation > 15
+            ? '#F59E0B'
+            : '#06B6D4';
+
+          // Connect user's recorded dot with expected note center if expected block exists
+          if (activeCrossingBlock) {
+            const tgtIdx = SWARAS.findIndex(s => s.id === activeCrossingBlock.swaraId);
+            if (tgtIdx !== -1) {
+              const tgtCenterY = (totalLanes - 1 - tgtIdx) * laneHeight + laneHeight * 0.5;
+
+              ctx.save();
+              ctx.strokeStyle = dotColor;
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([3, 3]);
+              ctx.beginPath();
+              ctx.moveTo(playheadX, tgtCenterY);
+              ctx.lineTo(playheadX, recY);
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+
+          // Glowing cursor dot for recorded voice
           ctx.save();
-          // Radiating acoustic soundwave rings
-          ctx.strokeStyle = `rgba(245, 158, 11, ${0.3 + lvl * 0.6})`;
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.arc(playheadX, centerY, 8 + lvl * 22, 0, Math.PI * 2);
-          ctx.stroke();
-
-          // Golden vocal core
-          ctx.fillStyle = '#F59E0B';
           ctx.shadowBlur = 20;
-          ctx.shadowColor = '#FBBF24';
+          ctx.shadowColor = dotColor;
+          ctx.fillStyle = dotColor;
           ctx.beginPath();
-          ctx.arc(playheadX, centerY, 7 + lvl * 8, 0, Math.PI * 2);
+          ctx.arc(playheadX, recY, 9, 0, Math.PI * 2);
           ctx.fill();
 
           ctx.fillStyle = '#FFFFFF';
           ctx.beginPath();
-          ctx.arc(playheadX, centerY, 4, 0, Math.PI * 2);
+          ctx.arc(playheadX, recY, 4, 0, Math.PI * 2);
           ctx.fill();
+
+          // Inspection Callout Pill on Playhead
+          const devStr =
+            recordedAtPlayhead.centsDeviation >= 0
+              ? `+${recordedAtPlayhead.centsDeviation}¢`
+              : `${recordedAtPlayhead.centsDeviation}¢`;
+          const pillText = `${recordedAtPlayhead.swaraId} (${devStr})`;
+
+          ctx.font = 'bold 11px "Outfit", sans-serif';
+          const textW = ctx.measureText(pillText).width;
+          const pillX = playheadX + 16;
+          const pillY = Math.max(12, Math.min(height - 24, recY - 11));
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+          ctx.strokeStyle = dotColor;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(pillX, pillY, textW + 16, 22, 11);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'left';
+          ctx.fillText(pillText, pillX + 8, pillY + 15);
           ctx.restore();
         }
-      }
-
-      // 9b. Bright Glowing Cursor Dot on Playhead (matching screenshot - only during user turn)
-      if (stage !== 'idle' && isUserTurn && currentPitch) {
+      } else if (stage !== 'idle' && isUserTurn && currentPitch) {
+        // LIVE MODE CURSOR DOT
         const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
         const basePos = swaraIndex !== -1 ? swaraIndex : 0;
         const currentPos = basePos + currentPitch.centsDeviation / 100;
         const dotY = height - (currentPos + 0.5) * laneHeight;
-        const userVol = Math.max(0.15, audioLevel || (currentPitch.clarity * 0.7));
+        const userVol = Math.max(0.15, audioLevel || currentPitch.clarity * 0.7);
         const dotRadius = 7 + userVol * 8;
 
         ctx.save();
-        // Dot Color: Pure Green when in sur, Orange when off
         const dotColor = currentPitch.isInSur ? '#22C55E' : '#FF7A00';
         ctx.shadowBlur = 22;
         ctx.shadowColor = dotColor;
@@ -473,13 +652,11 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.arc(playheadX, dotY, dotRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // White bright center core
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(playheadX, dotY, 4, 0, Math.PI * 2);
         ctx.fill();
 
-        // Radiating pulse ring when matching pure sur
         if (currentPitch.isInSur) {
           ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
           ctx.lineWidth = 2;
@@ -527,57 +704,75 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       ctx.stroke();
       ctx.restore();
 
-      // 11. Top Status Badge on Canvas
-      if (stage !== 'idle') {
-        let statusText = '';
-        let bannerColor = '#F59E0B';
+      // =========================================================================
+      // 11. TOP STATUS BADGE ON CANVAS
+      // =========================================================================
+      let statusText = '';
+      let bannerColor = '#F59E0B';
 
+      if (isReviewMode) {
+        const nearestRec = (recordedPoints || []).find(
+          p => Math.abs(p.timeSec - elapsedSec) <= 0.15
+        );
+
+        if (activeCrossingBlock && nearestRec) {
+          const isMatch = nearestRec.swaraId === activeCrossingBlock.swaraId && nearestRec.isInSur;
+          const devStr = nearestRec.centsDeviation >= 0 ? `+${nearestRec.centsDeviation}¢` : `${nearestRec.centsDeviation}¢`;
+          statusText = `🎯 EXPECTED: ${activeCrossingBlock.label}  |  🎤 SUNG: ${nearestRec.swaraId} (${nearestRec.frequency.toFixed(1)}Hz, ${devStr}) ${isMatch ? '✨ IN SUR' : '⚠️ OFF'}`;
+          bannerColor = isMatch ? '#22C55E' : '#F59E0B';
+        } else if (activeCrossingBlock && !nearestRec) {
+          statusText = `🎯 EXPECTED: ${activeCrossingBlock.label}  |  🎤 SUNG: [Gap / Silence]`;
+          bannerColor = '#94A3B8';
+        } else if (!activeCrossingBlock && nearestRec) {
+          statusText = `🎯 EXPECTED: [Rest]  |  🎤 SUNG: ${nearestRec.swaraId} (${nearestRec.frequency.toFixed(1)}Hz)`;
+          bannerColor = '#38BDF8';
+        } else {
+          statusText = `🔍 REVIEW MODE • Drag canvas or slider to inspect Expected vs Recorded`;
+          bannerColor = '#38BDF8';
+        }
+      } else if (stage !== 'idle') {
         if (activeCrossingBlock?.type === 'assisted') {
-          statusText = `🎧 GURU SINGS: ${activeCrossingBlock.label} (${activeRemainingSec.toFixed(1)}s left)`;
+          statusText = `🎧 GURU SINGS: ${activeCrossingBlock.label} (${activeRemaining.toFixed(1)}s left)`;
           bannerColor = '#F59E0B';
         } else if (activeCrossingBlock?.type === 'user') {
-          statusText = `🎤 YOUR TURN: Sing "${activeCrossingBlock.label}" (${activeRemainingSec.toFixed(1)}s left)`;
+          statusText = `🎤 YOUR TURN: Sing "${activeCrossingBlock.label}" (${activeRemaining.toFixed(1)}s left)`;
           bannerColor = isHitActive ? '#22C55E' : '#FF7A00';
         } else {
-          // Check upcoming block
           const upcoming = targetBlocks.find(b => b.startTimeSec > elapsedSec);
           if (upcoming?.type === 'user') {
             const timeToUser = (upcoming.startTimeSec - elapsedSec).toFixed(1);
             statusText = `👀 Take a breath... You sing in ${timeToUser}s!`;
             bannerColor = '#FF7A00';
-          } else if (upcoming?.type === 'assisted') {
-            const timeToAssisted = (upcoming.startTimeSec - elapsedSec).toFixed(1);
-            statusText = `🎧 Guru will sing in ${timeToAssisted}s...`;
-            bannerColor = '#F59E0B';
           }
         }
+      }
 
-        if (statusText) {
-          ctx.save();
-          const bannerW = 310;
-          const bannerH = 26;
-          const bannerX = width - bannerW - 14;
-          const bannerY = 10;
+      if (statusText) {
+        ctx.save();
+        ctx.font = 'bold 11px "Outfit", sans-serif';
+        const txtWidth = ctx.measureText(statusText).width;
+        const bannerW = Math.max(300, txtWidth + 34);
+        const bannerH = 26;
+        const bannerX = width - bannerW - 14;
+        const bannerY = 10;
 
-          ctx.fillStyle = 'rgba(10, 14, 23, 0.9)';
-          ctx.strokeStyle = bannerColor;
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.roundRect(bannerX, bannerY, bannerW, bannerH, 13);
-          ctx.fill();
-          ctx.stroke();
+        ctx.fillStyle = 'rgba(10, 14, 23, 0.92)';
+        ctx.strokeStyle = bannerColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(bannerX, bannerY, bannerW, bannerH, 13);
+        ctx.fill();
+        ctx.stroke();
 
-          ctx.font = 'bold 11px "Outfit", sans-serif';
-          ctx.fillStyle = '#FFFFFF';
-          ctx.textAlign = 'left';
-          ctx.fillText(statusText, bannerX + 12, bannerY + 17);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'left';
+        ctx.fillText(statusText, bannerX + 14, bannerY + 17);
 
-          ctx.fillStyle = bannerColor;
-          ctx.beginPath();
-          ctx.arc(bannerX + bannerW - 12, bannerY + 13, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
+        ctx.fillStyle = bannerColor;
+        ctx.beginPath();
+        ctx.arc(bannerX + bannerW - 12, bannerY + 13, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
 
       animRef.current = requestAnimationFrame(render);
@@ -591,11 +786,59 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         cancelAnimationFrame(animRef.current);
       }
     };
-  }, [stage, exerciseStartTimeMs, targetBlocks, isHitActive, currentPitch, audioLevel]);
+  }, [
+    stage,
+    exerciseStartTimeMs,
+    targetBlocks,
+    isHitActive,
+    currentPitch,
+    audioLevel,
+    isReviewMode,
+    reviewElapsedSec,
+    recordedPoints,
+  ]);
+
+  // Mouse / Touch Interaction for Direct Canvas Drag-Scrubbing
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isReviewMode || !onScrubTime) return;
+    setIsDragging(true);
+    dragStartXRef.current = e.clientX;
+    dragStartTimeRef.current = reviewElapsedSec;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isReviewMode || !isDragging || !onScrubTime) return;
+    const pixelsPerSec = 125;
+    const dx = e.clientX - dragStartXRef.current;
+    // Moving mouse to the right pulls past into view (decreases time)
+    const newSec = Math.max(0, Math.min(totalRoundSec, dragStartTimeRef.current - dx / pixelsPerSec));
+    onScrubTime(newSec);
+  };
+
+  const handleMouseUp = () => {
+    if (isDragging) setIsDragging(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    if (!isReviewMode || !onScrubTime) return;
+    const pixelsPerSec = 125;
+    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+    const dt = (delta / pixelsPerSec) * 0.4;
+    onScrubTime(Math.max(0, Math.min(totalRoundSec, reviewElapsedSec + dt)));
+  };
 
   return (
     <div className="highway-canvas-container">
-      <canvas ref={canvasRef} className="highway-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="highway-canvas"
+        style={{ cursor: isReviewMode ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+      />
     </div>
   );
 };

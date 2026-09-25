@@ -12,19 +12,24 @@ import {
   ArrowRight,
   Flame,
   Zap,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  ChevronLeft,
+  Search,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { PRACTICE_LESSONS } from '../types/music';
+import { PRACTICE_LESSONS, SWARAS } from '../types/music';
 import type {
   PracticeLesson,
   DetectedPitch,
   RootPitchConfig,
   PerformanceAnalysis,
   RecordedPitchPoint,
-  LessonNote,
+  HighwayTargetBlock,
 } from '../types/music';
 import { NoteHighwayCanvas } from './NoteHighwayCanvas';
-import type { HighwayTargetBlock } from './NoteHighwayCanvas';
 
 interface GuruLessonPracticeProps {
   currentPitch: DetectedPitch | null;
@@ -44,6 +49,8 @@ export interface RoundPerformance {
   avgDeviation: number;
   timeInSurSec: number;
   totalSec: number;
+  recordedPoints: RecordedPitchPoint[];
+  targetBlocks: HighwayTargetBlock[];
 }
 
 interface NotePerformanceSummary {
@@ -96,7 +103,6 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 }) => {
   const [selectedLesson, setSelectedLesson] = useState<PracticeLesson>(PRACTICE_LESSONS[0]);
   const [stage, setStage] = useState<PracticeStage>('idle');
-  const [customSaDuration, setCustomSaDuration] = useState<number>(6.0);
 
   // Singer Curriculum & Profile
   const [singerProfile, setSingerProfile] = useState<SingerProfile>(loadSavedProfile);
@@ -107,17 +113,24 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundHistory, setRoundHistory] = useState<RoundPerformance[]>([]);
   const [roundToast, setRoundToast] = useState<string | null>(null);
-  const [autoTanpura] = useState<boolean>(true);
 
   // User microphone level
   const [userMicLevel, setUserMicLevel] = useState<number>(0);
 
-  // Highway timing and state
+  // Highway timing and live state
   const [exerciseStartTimeMs, setExerciseStartTimeMs] = useState<number | null>(null);
   const [elapsedExerciseSec, setElapsedExerciseSec] = useState<number>(0);
   const [isHitActive, setIsHitActive] = useState<boolean>(false);
   const [activeBlock, setActiveBlock] = useState<HighwayTargetBlock | null>(null);
   const [activeBlockRemainingSec, setActiveBlockRemainingSec] = useState<number>(0);
+
+  // Scrollback & Review State
+  const [reviewRoundIndex, setReviewRoundIndex] = useState<number>(0);
+  const [reviewElapsedSec, setReviewElapsedSec] = useState<number>(0);
+  const [isReviewPlaying, setIsReviewPlaying] = useState<boolean>(false);
+  const [showIdleReview, setShowIdleReview] = useState<boolean>(false);
+  const reviewAnimIdRef = useRef<number | null>(null);
+  const reviewLastTimeRef = useRef<number | null>(null);
 
   // Analysis state
   const [analysis, setAnalysis] = useState<PerformanceAnalysis | null>(null);
@@ -127,10 +140,11 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
   const allSessionPointsRef = useRef<RecordedPitchPoint[]>([]);
   const roundTransitionTimeoutRef = useRef<number | null>(null);
 
-  // Clean up round transitions
+  // Clean up round transitions & animations on unmount
   useEffect(() => {
     return () => {
       if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
+      if (reviewAnimIdRef.current) cancelAnimationFrame(reviewAnimIdRef.current);
     };
   }, []);
 
@@ -164,7 +178,6 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
     const masteryPercent = Math.round((masteredCount / totalLessons) * 100);
 
-    // Dynamic Singer Rank
     let rankTitle = '🎵 Shishya (आरंभिक शिष्य / Apprentice Vocalist)';
     let rankBadge = 'Shishya';
     let rankColor = '#FBBF24';
@@ -192,7 +205,6 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
       nextMilestone = `${8 - masteredCount} more lessons to reach Gayak rank`;
     }
 
-    // Next recommended lesson to practice
     const nextLesson = PRACTICE_LESSONS.find(l => {
       const sc = scores[l.id];
       return !sc || sc.bestAccuracy < 80;
@@ -227,13 +239,9 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     }
   }, [currentPitch, stage]);
 
-  // Compute effective target notes
-  const effectiveTargetNotes: LessonNote[] = useMemo(() => {
-    if (selectedLesson.id === 'lesson_sa') {
-      return [{ ...selectedLesson.targetNotes[0], durationSec: customSaDuration }];
-    }
-    return selectedLesson.targetNotes;
-  }, [selectedLesson, customSaDuration]);
+  // Static pre-timed target blocks & total duration directly from selected lesson
+  const targetBlocks: HighwayTargetBlock[] = selectedLesson.targetBlocks;
+  const totalRoundSec: number = selectedLesson.totalRoundSec;
 
   // Live breath hold tracking for Long Sa
   const liveHeldSec = useMemo(() => {
@@ -251,32 +259,80 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     return Math.round((inSur / pts.length) * 100);
   }, [activeBlock]);
 
-  // Compute target blocks for the scrolling highway:
-  // All blocks are user singing targets (1.0s lead-in for smooth highway entry)
-  const targetBlocks: HighwayTargetBlock[] = useMemo(() => {
-    const blocks: HighwayTargetBlock[] = [];
-    let curSec = 1.0;
-    effectiveTargetNotes.forEach(n => {
-      blocks.push({
-        swaraId: n.swaraId,
-        startTimeSec: curSec,
-        durationSec: n.durationSec,
-        label: n.label,
-        type: 'user',
-      });
-      curSec += n.durationSec + 0.5;
-    });
-    return blocks;
-  }, [effectiveTargetNotes]);
+  // Active Review Round selection & bounds
+  const activeReviewRound = useMemo(() => {
+    if (roundHistory.length === 0) return null;
+    const safeIdx = Math.max(0, Math.min(roundHistory.length - 1, reviewRoundIndex));
+    return roundHistory[safeIdx];
+  }, [roundHistory, reviewRoundIndex]);
 
-  // Total duration of one complete round in seconds
-  const totalRoundSec = useMemo(() => {
-    if (targetBlocks.length === 0) return 6;
-    const last = targetBlocks[targetBlocks.length - 1];
-    return last.startTimeSec + last.durationSec + 0.6;
-  }, [targetBlocks]);
+  const activeReviewTotalSec = useMemo(() => {
+    if (activeReviewRound && activeReviewRound.totalSec > 0) {
+      return activeReviewRound.totalSec;
+    }
+    return totalRoundSec;
+  }, [activeReviewRound, totalRoundSec]);
 
-  // Main continuous animation loop (Zero freezing, continuous scrolling)
+  const activeReviewTargetBlocks = useMemo(() => {
+    if (activeReviewRound?.targetBlocks && activeReviewRound.targetBlocks.length > 0) {
+      return activeReviewRound.targetBlocks;
+    }
+    return targetBlocks;
+  }, [activeReviewRound, targetBlocks]);
+
+  const activeReviewRecordedPoints = useMemo(() => {
+    if (activeReviewRound?.recordedPoints && activeReviewRound.recordedPoints.length > 0) {
+      return activeReviewRound.recordedPoints;
+    }
+    if (recordedPointsRef.current.length > 0) {
+      return recordedPointsRef.current;
+    }
+    return allSessionPointsRef.current;
+  }, [activeReviewRound]);
+
+  // Inspection at scrubber position in review mode
+  const currentExpectedBlock = useMemo(() => {
+    return activeReviewTargetBlocks.find(
+      b => reviewElapsedSec >= b.startTimeSec && reviewElapsedSec <= b.startTimeSec + b.durationSec
+    );
+  }, [activeReviewTargetBlocks, reviewElapsedSec]);
+
+  const currentRecordedPoint = useMemo(() => {
+    if (!activeReviewRecordedPoints || activeReviewRecordedPoints.length === 0) return null;
+    return activeReviewRecordedPoints.find(p => Math.abs(p.timeSec - reviewElapsedSec) <= 0.15);
+  }, [activeReviewRecordedPoints, reviewElapsedSec]);
+
+  // Play/Pause Replay Animation Loop for Scrollback Review
+  useEffect(() => {
+    if (!isReviewPlaying) {
+      if (reviewAnimIdRef.current) cancelAnimationFrame(reviewAnimIdRef.current);
+      reviewLastTimeRef.current = null;
+      return;
+    }
+
+    const tickReview = (now: number) => {
+      if (reviewLastTimeRef.current !== null) {
+        const dt = (now - reviewLastTimeRef.current) / 1000;
+        setReviewElapsedSec(prev => {
+          const next = prev + dt;
+          if (next >= activeReviewTotalSec) {
+            setIsReviewPlaying(false);
+            return activeReviewTotalSec;
+          }
+          return next;
+        });
+      }
+      reviewLastTimeRef.current = now;
+      reviewAnimIdRef.current = requestAnimationFrame(tickReview);
+    };
+
+    reviewAnimIdRef.current = requestAnimationFrame(tickReview);
+    return () => {
+      if (reviewAnimIdRef.current) cancelAnimationFrame(reviewAnimIdRef.current);
+    };
+  }, [isReviewPlaying, activeReviewTotalSec]);
+
+  // Main continuous animation loop during live practice
   useEffect(() => {
     if (stage !== 'practicing' || exerciseStartTimeMs === null) return;
 
@@ -299,23 +355,27 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
         // Evaluate pitch match against target swara
         const isMatch = currentPitch && currentPitch.swara.id === crossingBlock.swaraId && currentPitch.isInSur;
         setIsHitActive(!!isMatch);
-
-        // Record user singing data
-        if (currentPitch) {
-          const pt: RecordedPitchPoint = {
-            timeSec: elapsedSec,
-            frequency: currentPitch.frequency,
-            centsDeviation: currentPitch.centsDeviation,
-            isInSur: currentPitch.isInSur,
-            swaraId: currentPitch.swara.id,
-          };
-          recordedPointsRef.current.push(pt);
-          allSessionPointsRef.current.push(pt);
-        }
       } else {
         setActiveBlock(null);
         setActiveBlockRemainingSec(0);
         setIsHitActive(false);
+      }
+
+      // Record singing pitch continuously throughout practice (including note transitions)
+      if (currentPitch) {
+        const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
+        const semitonePos = (swaraIndex !== -1 ? swaraIndex : 0) + currentPitch.centsDeviation / 100;
+
+        const pt: RecordedPitchPoint = {
+          timeSec: elapsedSec,
+          frequency: currentPitch.frequency,
+          centsDeviation: currentPitch.centsDeviation,
+          isInSur: currentPitch.isInSur,
+          swaraId: currentPitch.swara.id,
+          semitonePos,
+        };
+        recordedPointsRef.current.push(pt);
+        allSessionPointsRef.current.push(pt);
       }
 
       // Check if current round has completed
@@ -339,22 +399,20 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     setIsHitActive(false);
     setStage('practicing');
     setElapsedExerciseSec(0);
+    setShowIdleReview(false);
 
     const startT = performance.now();
     setExerciseStartTimeMs(startT);
   };
 
-  // Start entire multi-round practice session
+  // Start entire multi-round practice session (does not auto-trigger Tanpura)
   const startFullPracticeSession = () => {
     if (!isMicActive) onStartMic();
-    // Engage continuous background Tanpura drone for authentic classical atmosphere
-    if (autoTanpura && !isTanpuraActive && onToggleTanpura) {
-      onToggleTanpura();
-    }
     setRoundHistory([]);
     setAnalysis(null);
     setRoundToast(null);
     setNoteBreakdowns([]);
+    setShowIdleReview(false);
     allSessionPointsRef.current = [];
     launchRound(1);
   };
@@ -365,7 +423,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     setIsHitActive(false);
     setActiveBlock(null);
 
-    const points = recordedPointsRef.current;
+    const points = [...recordedPointsRef.current];
     const inSurPts = points.filter(p => p.isInSur);
     const roundAcc = points.length > 0 ? Math.min(100, Math.round((inSurPts.length / points.length) * 100)) : 0;
 
@@ -387,11 +445,15 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
       stability: roundStab,
       avgDeviation: avgDev,
       timeInSurSec: Math.round((inSurPts.length * 0.05) * 10) / 10,
-      totalSec: Math.round((points.length * 0.05) * 10) / 10,
+      totalSec: Math.max(totalRoundSec, Math.round((points.length * 0.05) * 10) / 10),
+      recordedPoints: points,
+      targetBlocks: [...targetBlocks],
     };
 
     const nextHistory = [...roundHistory, roundPerf];
     setRoundHistory(nextHistory);
+    setReviewRoundIndex(nextHistory.length - 1);
+    setReviewElapsedSec(0);
 
     // If more rounds remain, trigger next round seamlessly
     if (currentRound < totalRounds) {
@@ -416,6 +478,9 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     setExerciseStartTimeMs(null);
     setIsHitActive(false);
     setActiveBlock(null);
+    setIsReviewPlaying(false);
+    setReviewRoundIndex(Math.max(0, completedRounds.length - 1));
+    setReviewElapsedSec(0);
 
     const allPts = allSessionPointsRef.current;
     if (allPts.length === 0) {
@@ -525,9 +590,10 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
   const handleStopOrReset = () => {
     if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
+    if (reviewAnimIdRef.current) cancelAnimationFrame(reviewAnimIdRef.current);
+    setIsReviewPlaying(false);
     setStage('idle');
     setCurrentRound(1);
-    setRoundHistory([]);
     setExerciseStartTimeMs(null);
     setElapsedExerciseSec(0);
     setIsHitActive(false);
@@ -537,13 +603,45 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     setAnalysis(null);
     setNoteBreakdowns([]);
     setUserMicLevel(0);
+    setShowIdleReview(false);
+  };
+
+  // Immediate Stop & Jump directly to Review Mode
+  const handleStopAndReview = () => {
+    handleRoundComplete();
+  };
+
+  // Note jump handlers
+  const handleJumpPrevNote = () => {
+    const cur = reviewElapsedSec;
+    const prev = [...activeReviewTargetBlocks].reverse().find(b => b.startTimeSec < cur - 0.25);
+    if (prev) {
+      setReviewElapsedSec(prev.startTimeSec);
+    } else {
+      setReviewElapsedSec(0);
+    }
+  };
+
+  const handleJumpNextNote = () => {
+    const cur = reviewElapsedSec;
+    const next = activeReviewTargetBlocks.find(b => b.startTimeSec > cur + 0.25);
+    if (next) {
+      setReviewElapsedSec(next.startTimeSec);
+    }
+  };
+
+  const handleStepTime = (deltaSec: number) => {
+    setReviewElapsedSec(prev =>
+      Math.max(0, Math.min(activeReviewTotalSec, Math.round((prev + deltaSec) * 10) / 10))
+    );
   };
 
   // Format seconds to mm:ss
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+    const ds = Math.floor((sec % 1) * 10);
+    return `${m}:${s < 10 ? '0' : ''}${s}.${ds}`;
   };
 
   // Stages configuration
@@ -557,10 +655,12 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     { id: 6, num: 6, label: 'Stage 6: Ragas', hindi: 'राग रस', count: 2 },
   ];
 
+  const isReviewingActive = stage === 'analysis' || showIdleReview;
+
   return (
     <div className="guru-practice-container">
       {/* ========================================================================= */}
-      {/* SINGER JOURNEY HERO DASHBOARD (कैरिकुलम व साधक प्रोफाइल) */}
+      {/* SINGER JOURNEY HERO DASHBOARD */}
       {/* ========================================================================= */}
       <div className="singer-journey-hero-card">
         <div className="singer-hero-left">
@@ -594,23 +694,37 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
           </div>
         </div>
 
-        {/* Hero Right: Next Recommended Lesson Quick-Action */}
+        {/* Hero Right: Next Recommended Lesson or Review Toggle */}
         {stage === 'idle' && (
           <div className="singer-hero-right">
-            <div className="next-lesson-box">
-              <span className="next-tag"><Flame size={14} /> RECOMMENDED NEXT LESSON</span>
-              <h4 className="next-title">{masteryStats.nextLesson.title}</h4>
-              <span className="next-stage">{masteryStats.nextLesson.stageHindi}</span>
-              <button
-                className="next-lesson-btn"
-                onClick={() => {
-                  setSelectedLesson(masteryStats.nextLesson);
-                  window.scrollTo({ top: 380, behavior: 'smooth' });
-                }}
-              >
-                <span>Select This Lesson</span> <ArrowRight size={14} />
-              </button>
-            </div>
+            {roundHistory.length > 0 && !showIdleReview ? (
+              <div className="next-lesson-box review-promo-box">
+                <span className="next-tag"><Search size={14} /> PREVIOUS PRACTICE READY</span>
+                <h4 className="next-title">Review Expected vs Recorded</h4>
+                <span className="next-stage">{roundHistory.length} round(s) recorded</span>
+                <button
+                  className="next-lesson-btn review-btn"
+                  onClick={() => setShowIdleReview(true)}
+                >
+                  <Search size={14} /> <span>Open Highway Scrollback</span>
+                </button>
+              </div>
+            ) : (
+              <div className="next-lesson-box">
+                <span className="next-tag"><Flame size={14} /> RECOMMENDED NEXT LESSON</span>
+                <h4 className="next-title">{masteryStats.nextLesson.title}</h4>
+                <span className="next-stage">{masteryStats.nextLesson.stageHindi}</span>
+                <button
+                  className="next-lesson-btn"
+                  onClick={() => {
+                    setSelectedLesson(masteryStats.nextLesson);
+                    window.scrollTo({ top: 380, behavior: 'smooth' });
+                  }}
+                >
+                  <span>Select This Lesson</span> <ArrowRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -620,9 +734,14 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
         {/* Top Arena Control Bar */}
         <div className="arena-top-controls-bar">
           <div className="arena-stage-status">
-            {stage === 'idle' && (
+            {stage === 'idle' && !showIdleReview && (
               <span className="stage-pill idle">
                 <Sparkles size={14} /> RIYAZ HIGHWAY READY ({totalRounds} ROUNDS)
+              </span>
+            )}
+            {stage === 'idle' && showIdleReview && (
+              <span className="stage-pill review animate-pulse">
+                <Search size={14} /> HIGHWAY REVIEW MODE (अपेक्षित बनाम रिकॉर्डेड)
               </span>
             )}
             {stage === 'practicing' && activeBlock && (
@@ -646,10 +765,10 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
             </span>
           </div>
 
-          {/* Practice Settings Controls (when idle) */}
-          {stage === 'idle' && (
+          {/* Practice Settings Controls (when idle and not reviewing) */}
+          {stage === 'idle' && !showIdleReview && (
             <div className="arena-config-cluster">
-              {/* Tanpura Drone Toggle for Authentic Classical Ambience */}
+              {/* Tanpura Drone Toggle */}
               {onToggleTanpura && (
                 <div className="config-item">
                   <button
@@ -663,7 +782,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                 </div>
               )}
 
-              {/* Rounds Selector (Padhanisa 5-Rounds Default) */}
+              {/* Rounds Selector */}
               <div className="config-item">
                 <span className="config-label"><UserCheck size={12} /> Rounds:</span>
                 <div className="sa-dur-btns">
@@ -682,37 +801,219 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                   ))}
                 </div>
               </div>
-
-              {/* Sa Duration Selector for Lesson 1 (Padhanisa Long Sa Sthirata) */}
-              {selectedLesson.id === 'lesson_sa' && (
-                <div className="config-item">
-                  <span className="config-label">Sa Hold:</span>
-                  <div className="sa-dur-btns">
-                    {[
-                      { dur: 4.0, label: '4s' },
-                      { dur: 6.0, label: '6s ⭐' },
-                      { dur: 8.0, label: '8s' },
-                      { dur: 10.0, label: '10s' },
-                      { dur: 12.0, label: '12s (खरज)' },
-                      { dur: 16.0, label: '16s (साधना)' },
-                    ].map(({ dur, label }) => (
-                      <button
-                        key={dur}
-                        className={`dur-chip ${customSaDuration === dur ? 'active' : ''}`}
-                        onClick={() => setCustomSaDuration(dur)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
+          )}
+
+          {/* Close review button if reviewing during idle */}
+          {stage === 'idle' && showIdleReview && (
+            <button className="reset-pipeline-btn" onClick={() => setShowIdleReview(false)}>
+              <RotateCcw size={14} /> Back to Practice Setup
+            </button>
           )}
         </div>
 
-        {/* Live Scrolling Note Highway (Centerpiece) */}
-        {stage !== 'analysis' && (
+        {/* ========================================================================= */}
+        {/* INTERACTIVE HIGHWAY SCROLLBACK & REVIEWER COMPONENT */}
+        {/* Shown in analysis stage OR when user clicks 'Review Highway' */}
+        {/* ========================================================================= */}
+        {isReviewingActive && (
+          <div className="scrollback-reviewer-container">
+            <div className="reviewer-top-bar">
+              <div className="reviewer-title-col">
+                <div className="reviewer-header-title">
+                  <Search size={18} className="text-sky" />
+                  <h4>Expected vs. Recorded Highway Review (अपेक्षित बनाम रिकॉर्डेड स्वर समीक्षा)</h4>
+                </div>
+                <p className="reviewer-subtitle">
+                  Drag the slider or click anywhere on the highway to scrub through time and inspect expected notes vs your exact singing pitch.
+                </p>
+              </div>
+
+              {/* Round Selector Tabs */}
+              {roundHistory.length > 0 && (
+                <div className="reviewer-round-tabs">
+                  {roundHistory.map((r, idx) => (
+                    <button
+                      key={r.round}
+                      className={`round-tab-btn ${reviewRoundIndex === idx ? 'active' : ''}`}
+                      onClick={() => {
+                        setReviewRoundIndex(idx);
+                        setReviewElapsedSec(0);
+                        setIsReviewPlaying(false);
+                      }}
+                    >
+                      <span>Round {r.round}</span>
+                      <span className="round-tab-acc" style={{ color: r.accuracy >= 80 ? '#22C55E' : '#FBBF24' }}>
+                        {r.accuracy}%
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Highway Canvas in Review Mode */}
+            <div className="highway-arena-wrapper review-canvas-wrapper">
+              <NoteHighwayCanvas
+                currentPitch={currentPitch}
+                targetBlocks={activeReviewTargetBlocks}
+                exerciseStartTimeMs={null}
+                stage={stage}
+                isHitActive={false}
+                totalRoundSec={activeReviewTotalSec}
+                isUserTurn={false}
+                isReviewMode={true}
+                reviewElapsedSec={reviewElapsedSec}
+                recordedPoints={activeReviewRecordedPoints}
+                onScrubTime={setReviewElapsedSec}
+              />
+            </div>
+
+            {/* Interactive Timeline & Scrubber Bar */}
+            <div className="review-scrubber-panel">
+              <div className="scrubber-controls-row">
+                {/* Play / Pause Replay Button */}
+                <button
+                  className={`scrubber-play-btn ${isReviewPlaying ? 'playing' : ''}`}
+                  onClick={() => setIsReviewPlaying(!isReviewPlaying)}
+                  title={isReviewPlaying ? 'Pause replay' : 'Play back performance'}
+                >
+                  {isReviewPlaying ? <Pause size={18} /> : <Play size={18} />}
+                  <span>{isReviewPlaying ? 'Pause' : 'Replay (पुनरावलोकन)'}</span>
+                </button>
+
+                {/* Step Backward 1s */}
+                <button
+                  className="scrubber-step-btn"
+                  onClick={() => handleStepTime(-1.0)}
+                  title="Step backward 1 second"
+                >
+                  <SkipBack size={15} />
+                  <span>-1s</span>
+                </button>
+
+                {/* Step Forward 1s */}
+                <button
+                  className="scrubber-step-btn"
+                  onClick={() => handleStepTime(1.0)}
+                  title="Step forward 1 second"
+                >
+                  <SkipForward size={15} />
+                  <span>+1s</span>
+                </button>
+
+                {/* Jump to Previous Note */}
+                <button
+                  className="scrubber-step-btn note-jump"
+                  onClick={handleJumpPrevNote}
+                  title="Jump to previous target note"
+                >
+                  <ChevronLeft size={16} />
+                  <span>Prev Note</span>
+                </button>
+
+                {/* Jump to Next Note */}
+                <button
+                  className="scrubber-step-btn note-jump"
+                  onClick={handleJumpNextNote}
+                  title="Jump to next target note"
+                >
+                  <span>Next Note</span>
+                  <ChevronRight size={16} />
+                </button>
+
+                {/* Timestamp readout */}
+                <span className="scrubber-timestamp">
+                  {formatTime(reviewElapsedSec)} / {formatTime(activeReviewTotalSec)}
+                </span>
+              </div>
+
+              {/* Range Slider for Smooth Horizontal Scrubbing */}
+              <div className="scrubber-slider-track-wrap">
+                <input
+                  type="range"
+                  min="0"
+                  max={activeReviewTotalSec}
+                  step="0.05"
+                  value={reviewElapsedSec}
+                  onChange={(e) => {
+                    setReviewElapsedSec(parseFloat(e.target.value));
+                    setIsReviewPlaying(false);
+                  }}
+                  className="review-range-slider"
+                />
+              </div>
+
+              {/* Real-time Playhead Inspection Callout Pill */}
+              <div className="scrubber-inspection-card">
+                <div className="inspection-item expected">
+                  <span className="inspection-label">🎯 EXPECTED NOTE:</span>
+                  <span className="inspection-val">
+                    {currentExpectedBlock ? (
+                      <strong>
+                        {currentExpectedBlock.label} ({currentExpectedBlock.durationSec}s)
+                      </strong>
+                    ) : (
+                      <em className="text-muted">[Transition / Gap]</em>
+                    )}
+                  </span>
+                </div>
+
+                <div className="inspection-divider" />
+
+                <div className="inspection-item recorded">
+                  <span className="inspection-label">🎤 YOUR RECORDED VOICE:</span>
+                  <span className="inspection-val">
+                    {currentRecordedPoint ? (
+                      <strong>
+                        {currentRecordedPoint.swaraId} ({currentRecordedPoint.frequency.toFixed(1)} Hz,{' '}
+                        {currentRecordedPoint.centsDeviation >= 0
+                          ? `+${currentRecordedPoint.centsDeviation}¢`
+                          : `${currentRecordedPoint.centsDeviation}¢`}
+                        )
+                      </strong>
+                    ) : (
+                      <em className="text-muted">[No Voice / Breath Gap]</em>
+                    )}
+                  </span>
+                </div>
+
+                <div className="inspection-divider" />
+
+                <div className="inspection-item result">
+                  <span className="inspection-label">STATUS / सुर मिलान:</span>
+                  {currentExpectedBlock && currentRecordedPoint ? (
+                    currentRecordedPoint.swaraId === currentExpectedBlock.swaraId &&
+                    currentRecordedPoint.isInSur ? (
+                      <span className="match-pill green">✨ IN SUR (शुद्ध सुर • ±15¢)</span>
+                    ) : currentRecordedPoint.centsDeviation > 15 ? (
+                      <span className="match-pill amber">⚠️ SHARP (तीव्र झुकाव • थोड़ा नीचे आएं)</span>
+                    ) : (
+                      <span className="match-pill cyan">⚠️ FLAT (कोमल झुकाव • सुर ऊंचा उठाएं)</span>
+                    )
+                  ) : currentExpectedBlock && !currentRecordedPoint ? (
+                    <span className="match-pill gray">⏳ Silence / Breath Gap</span>
+                  ) : (
+                    <span className="match-pill blue">👀 Resting Between Notes</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Expected vs Recorded Legend */}
+              <div className="reviewer-legend-row">
+                <span className="legend-title">Legend:</span>
+                <span className="legend-chip in-sur">🟩 In Sur (Pure ±15¢ Match)</span>
+                <span className="legend-chip sharp">🟧 Sharp (&gt; +15¢ High)</span>
+                <span className="legend-chip flat">🟦 Flat (&lt; -15¢ Low)</span>
+                <span className="legend-chip target">🟨 Target Note Lane</span>
+                <span className="legend-hint">🖱️ Drag canvas or slider to scroll</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live Scrolling Note Highway (During live practice) */}
+        {!isReviewingActive && (
           <div className="highway-arena-wrapper">
             <NoteHighwayCanvas
               currentPitch={currentPitch}
@@ -770,8 +1071,8 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
           </div>
         )}
 
-        {/* Live Audio Level Meter (VU Meter) */}
-        {stage !== 'analysis' && (
+        {/* Live Audio Level Meter (VU Meter during live practice) */}
+        {!isReviewingActive && (
           <div className="live-vocal-meter-card">
             <div className="meter-header">
               <span className="meter-title">
@@ -809,7 +1110,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
         )}
 
         {/* Vocal Technique & Guru Guidance Card (Idle state before singing) */}
-        {stage === 'idle' && selectedLesson.technique && (
+        {stage === 'idle' && !showIdleReview && selectedLesson.technique && (
           <div className="lesson-technique-guidance-card">
             <div className="technique-header">
               <BookOpen size={18} className="text-amber" />
@@ -836,8 +1137,8 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
           </div>
         )}
 
-        {/* Action Button Footer (when idle) */}
-        {stage === 'idle' && (
+        {/* Action Button Footer (when idle and not reviewing) */}
+        {stage === 'idle' && !showIdleReview && (
           <div className="arena-idle-action-footer">
             <div className="action-buttons-group">
               <button className="primary-action-btn single-full-btn" onClick={startFullPracticeSession}>
@@ -851,7 +1152,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
           </div>
         )}
 
-        {/* Singing HUD Metrics Strip */}
+        {/* Singing HUD Metrics Strip (During practice) */}
         {stage === 'practicing' && (
           <div className="arena-singing-footer">
             <div className="singing-live-strip">
@@ -921,14 +1222,17 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
             </div>
 
             <div className="stop-practice-bar">
+              <button className="review-now-btn" onClick={handleStopAndReview}>
+                <Search size={16} /> Stop & Review Highway (रोकें और विश्लेषण देखें)
+              </button>
               <button className="reset-pipeline-btn" onClick={handleStopOrReset}>
-                <RotateCcw size={16} /> Stop Practice & Return to Menu
+                <RotateCcw size={16} /> Exit
               </button>
             </div>
           </div>
         )}
 
-        {/* Multi-Round Performance Analysis Report */}
+        {/* Multi-Round Performance Analysis Report (In addition to the reviewer above) */}
         {stage === 'analysis' && analysis && (
           <div className="stage-analysis-box">
             <div className="analysis-header-row">
@@ -974,8 +1278,18 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                   <span>Round-by-Round Progression (चक्रवार तुलना)</span>
                 </div>
                 <div className="rounds-bar-chart">
-                  {roundHistory.map((r) => (
-                    <div key={r.round} className="round-chart-col">
+                  {roundHistory.map((r, idx) => (
+                    <div
+                      key={r.round}
+                      className={`round-chart-col ${reviewRoundIndex === idx ? 'selected-col' : ''}`}
+                      onClick={() => {
+                        setReviewRoundIndex(idx);
+                        setReviewElapsedSec(0);
+                        setIsReviewPlaying(false);
+                      }}
+                      title={`Click to review Round ${r.round} on the highway`}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <span className="round-chart-score">{r.accuracy}%</span>
                       <div className="round-chart-track">
                         <div
@@ -1038,7 +1352,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
               </button>
 
               <button className="secondary-action-btn" onClick={handleStopOrReset}>
-                <BookOpen size={18} /> Select Another Lesson (पाठ सूची)
+                <BookOpen size={18} /> Choose Another Lesson (पाठ सूची)
               </button>
             </div>
           </div>
@@ -1046,9 +1360,9 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* 20-LESSON VOCAL MASTERY CURRICULUM GRID (when idle) */}
+      {/* 20-LESSON VOCAL MASTERY CURRICULUM GRID (when idle and not reviewing) */}
       {/* ========================================================================= */}
-      {stage === 'idle' && (
+      {stage === 'idle' && !showIdleReview && (
         <div className="practice-lessons-section">
           <div className="section-title-row">
             <div>
@@ -1118,16 +1432,16 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                   <p className="lesson-description">{lesson.description}</p>
 
                   <div className="lesson-target-notes-row">
-                    {lesson.targetNotes.map((note, idx) => (
+                    {lesson.targetBlocks.map((block, idx) => (
                       <span key={idx} className="note-capsule-tag">
-                        {note.label}
+                        {block.label}
                       </span>
                     ))}
                   </div>
 
                   <div className="lesson-card-footer">
                     <span className="lesson-duration-est">
-                      {lesson.targetNotes.reduce((acc, n) => acc + n.durationSec, 0)}s per round
+                      {lesson.totalRoundSec}s per round
                     </span>
                     <span className="lesson-action-hint">
                       {isSelected ? '✓ Selected' : 'Select'} <ChevronRight size={14} />

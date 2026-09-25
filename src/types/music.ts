@@ -281,6 +281,14 @@ export interface LessonNote {
   label: string;
 }
 
+export interface HighwayTargetBlock {
+  swaraId: string;
+  startTimeSec: number; // time relative to exercise start in seconds
+  durationSec: number;
+  label: string;
+  type: 'assisted' | 'user';
+}
+
 export interface VocalTechniqueTip {
   focusArea: string;
   breathPlacement: string;
@@ -300,7 +308,9 @@ export interface PracticeLesson {
   description: string;
   instructions: string;
   technique: VocalTechniqueTip;
-  targetNotes: LessonNote[];
+  targetBlocks: HighwayTargetBlock[];
+  totalRoundSec: number;
+  targetNotes?: LessonNote[];
 }
 
 export interface RecordedPitchPoint {
@@ -309,6 +319,7 @@ export interface RecordedPitchPoint {
   centsDeviation: number;
   isInSur: boolean;
   swaraId: string;
+  semitonePos?: number;
 }
 
 export interface PerformanceAnalysis {
@@ -344,9 +355,10 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Drop your jaw gently as if drinking warm tea. Do not push air from throat; let the sound float on breath.',
       targetRaga: 'Foundation of all Indian Ragas (सर्व राग मूल)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 6.0, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 6.0, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 8.5
   },
   {
     id: 'lesson_pa',
@@ -365,9 +377,10 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Feel the vibration in your teeth and nasal bridge. Align your sound to disappear into the Tanpura Pa string.',
       targetRaga: 'Universal Harmonic Fifth'
     },
-    targetNotes: [
-      { swaraId: 'P', durationSec: 5.0, label: 'प' }
-    ]
+    targetBlocks: [
+      { swaraId: 'P', startTimeSec: 1.5, durationSec: 5.0, label: 'प', type: 'user' }
+    ],
+    totalRoundSec: 7.5
   },
   {
     id: 'lesson_sa_pa_sa',
@@ -386,11 +399,12 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Do not squeeze your throat when shifting to Pa; tilt your chin slightly downward to keep vocal cords relaxed.',
       targetRaga: 'Achala Swara Foundation'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 3.0, label: 'सा' },
-      { swaraId: 'P', durationSec: 3.5, label: 'प' },
-      { swaraId: 'S', durationSec: 3.0, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 3.0, label: 'सा', type: 'user' },
+      { swaraId: 'P', startTimeSec: 5.0, durationSec: 3.5, label: 'प', type: 'user' },
+      { swaraId: 'S', startTimeSec: 9.0, durationSec: 3.0, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 13.0
   },
   {
     id: 'lesson_sa_taar_sa',
@@ -409,11 +423,12 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Never yell or force high Taar Sa. Imagine placing the note on the crown of your head with a smile.',
       targetRaga: 'Full Range Expansion'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 3.0, label: 'सा' },
-      { swaraId: 'S_taar', durationSec: 3.5, label: 'सां' },
-      { swaraId: 'S', durationSec: 3.0, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 3.0, label: 'सा', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 5.0, durationSec: 3.5, label: 'सां', type: 'user' },
+      { swaraId: 'S', startTimeSec: 9.0, durationSec: 3.0, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 13.0
   },
 
   // =========================================================================
@@ -436,11 +451,12 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Shuddha Re is 204 cents above Sa. Keep your tongue relaxed and flat against bottom teeth.',
       targetRaga: 'Bilawal, Kalyan, Kafi'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 2.5, label: 'सा' },
-      { swaraId: 'R', durationSec: 2.5, label: 'रे' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 2.5, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 4.5, durationSec: 2.5, label: 'रे', type: 'user' },
+      { swaraId: 'S', startTimeSec: 7.5, durationSec: 2.0, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 10.5
   },
   {
     id: 'lesson_sa_re_ga',
@@ -459,12 +475,13 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'In Just Intonation, Shuddha Ga is at 386 cents (slightly sweeter and lower than Western piano). Keep it pure.',
       targetRaga: 'Bilawal & Kalyan Thaat'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'R', durationSec: 2.0, label: 'रे' },
-      { swaraId: 'G', durationSec: 3.0, label: 'ग' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 2.0, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 4.0, durationSec: 2.0, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 6.5, durationSec: 3.0, label: 'ग', type: 'user' },
+      { swaraId: 'S', startTimeSec: 10.0, durationSec: 2.0, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 13.0
   },
   {
     id: 'lesson_poorvang',
@@ -483,13 +500,14 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Shuddha Madhyam (498 cents) must not lean toward Teevra Ma. Feel its resting, serene calm before reaching Pa.',
       targetRaga: 'Bilawal Poorvang'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
-      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
-      { swaraId: 'G', durationSec: 1.8, label: 'ग' },
-      { swaraId: 'm', durationSec: 2.0, label: 'म' },
-      { swaraId: 'P', durationSec: 2.5, label: 'प' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.8, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 3.8, durationSec: 1.8, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 6.1, durationSec: 1.8, label: 'ग', type: 'user' },
+      { swaraId: 'm', startTimeSec: 8.4, durationSec: 2.0, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 10.9, durationSec: 2.5, label: 'प', type: 'user' }
+    ],
+    totalRoundSec: 14.4
   },
   {
     id: 'lesson_full_saptak',
@@ -508,23 +526,24 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Dhaivat and Nishad must stay bright. Do not drop pitch on the descent from Taar Sa.',
       targetRaga: 'Bilawal Thaat (Natural Major Scale)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.4, label: 'सा' },
-      { swaraId: 'R', durationSec: 1.4, label: 'रे' },
-      { swaraId: 'G', durationSec: 1.4, label: 'ग' },
-      { swaraId: 'm', durationSec: 1.4, label: 'म' },
-      { swaraId: 'P', durationSec: 1.4, label: 'प' },
-      { swaraId: 'D', durationSec: 1.4, label: 'ध' },
-      { swaraId: 'N', durationSec: 1.4, label: 'नि' },
-      { swaraId: 'S_taar', durationSec: 2.2, label: 'सां' },
-      { swaraId: 'N', durationSec: 1.4, label: 'नि' },
-      { swaraId: 'D', durationSec: 1.4, label: 'ध' },
-      { swaraId: 'P', durationSec: 1.4, label: 'प' },
-      { swaraId: 'm', durationSec: 1.4, label: 'म' },
-      { swaraId: 'G', durationSec: 1.4, label: 'ग' },
-      { swaraId: 'R', durationSec: 1.4, label: 'रे' },
-      { swaraId: 'S', durationSec: 2.2, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.4, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 3.3, durationSec: 1.4, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 5.1, durationSec: 1.4, label: 'ग', type: 'user' },
+      { swaraId: 'm', startTimeSec: 6.9, durationSec: 1.4, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 8.7, durationSec: 1.4, label: 'प', type: 'user' },
+      { swaraId: 'D', startTimeSec: 10.5, durationSec: 1.4, label: 'ध', type: 'user' },
+      { swaraId: 'N', startTimeSec: 12.3, durationSec: 1.4, label: 'नि', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 14.2, durationSec: 2.2, label: 'सां', type: 'user' },
+      { swaraId: 'N', startTimeSec: 17.0, durationSec: 1.4, label: 'नि', type: 'user' },
+      { swaraId: 'D', startTimeSec: 18.8, durationSec: 1.4, label: 'ध', type: 'user' },
+      { swaraId: 'P', startTimeSec: 20.6, durationSec: 1.4, label: 'प', type: 'user' },
+      { swaraId: 'm', startTimeSec: 22.4, durationSec: 1.4, label: 'म', type: 'user' },
+      { swaraId: 'G', startTimeSec: 24.2, durationSec: 1.4, label: 'ग', type: 'user' },
+      { swaraId: 'R', startTimeSec: 26.0, durationSec: 1.4, label: 'रे', type: 'user' },
+      { swaraId: 'S', startTimeSec: 27.9, durationSec: 2.2, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 31.0
   },
 
   // =========================================================================
@@ -547,12 +566,13 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Hear Pancham inside your mind before singing it. Jump directly onto the pitch bullseye without meend.',
       targetRaga: 'Universal Classical Precision'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'P', durationSec: 2.5, label: 'प' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'P', durationSec: 2.5, label: 'प' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 2.0, label: 'सा', type: 'user' },
+      { swaraId: 'P', startTimeSec: 4.1, durationSec: 2.5, label: 'प', type: 'user' },
+      { swaraId: 'S', startTimeSec: 7.2, durationSec: 2.0, label: 'सा', type: 'user' },
+      { swaraId: 'P', startTimeSec: 9.8, durationSec: 2.5, label: 'प', type: 'user' }
+    ],
+    totalRoundSec: 13.3
   },
   {
     id: 'lesson_sa_ma_leap',
@@ -571,12 +591,13 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Shuddha Ma has an inward, meditating quality. Land on its center with soft vocal cords.',
       targetRaga: 'Malkauns, Bageshri, Megh'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'm', durationSec: 2.5, label: 'म' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'm', durationSec: 2.5, label: 'म' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 2.0, label: 'सा', type: 'user' },
+      { swaraId: 'm', startTimeSec: 4.1, durationSec: 2.5, label: 'म', type: 'user' },
+      { swaraId: 'S', startTimeSec: 7.2, durationSec: 2.0, label: 'सा', type: 'user' },
+      { swaraId: 'm', startTimeSec: 9.8, durationSec: 2.5, label: 'म', type: 'user' }
+    ],
+    totalRoundSec: 13.3
   },
   {
     id: 'lesson_thirds_sixths',
@@ -595,13 +616,14 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Dhaivat should feel bright and uplifting. Keep your soft palate lifted like a gentle yawn.',
       targetRaga: 'Bhupali, Deshkar, Pahadi'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
-      { swaraId: 'G', durationSec: 2.2, label: 'ग' },
-      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
-      { swaraId: 'D', durationSec: 2.5, label: 'ध' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.8, label: 'सा', type: 'user' },
+      { swaraId: 'G', startTimeSec: 3.8, durationSec: 2.2, label: 'ग', type: 'user' },
+      { swaraId: 'S', startTimeSec: 6.5, durationSec: 1.8, label: 'सा', type: 'user' },
+      { swaraId: 'D', startTimeSec: 8.8, durationSec: 2.5, label: 'ध', type: 'user' },
+      { swaraId: 'S', startTimeSec: 11.8, durationSec: 2.0, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 14.8
   },
 
   // =========================================================================
@@ -624,11 +646,12 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Komal Re is only 1 semitone above Sa. Think of it as a shadow of Sa rather than a separate jump.',
       targetRaga: 'Raga Bhairav, Ahir Bhairav'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 2.2, label: 'सा' },
-      { swaraId: 'r', durationSec: 3.2, label: 'रे॒' },
-      { swaraId: 'S', durationSec: 2.5, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 2.2, label: 'सा', type: 'user' },
+      { swaraId: 'r', startTimeSec: 4.3, durationSec: 3.2, label: 'रे॒', type: 'user' },
+      { swaraId: 'S', startTimeSec: 8.1, durationSec: 2.5, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 11.6
   },
   {
     id: 'lesson_komal_ga_ni',
@@ -647,16 +670,17 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Komal Ga is 316 cents — 70 cents lower than Shuddha Ga. Let your voice embrace its soft, tender slope.',
       targetRaga: 'Raga Kafi, Bageshree, Pilu'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
-      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
-      { swaraId: 'g', durationSec: 2.5, label: 'ग॒' },
-      { swaraId: 'm', durationSec: 1.8, label: 'म' },
-      { swaraId: 'P', durationSec: 1.8, label: 'प' },
-      { swaraId: 'd', durationSec: 1.8, label: 'ध॒' },
-      { swaraId: 'n', durationSec: 2.2, label: 'नि॒' },
-      { swaraId: 'S_taar', durationSec: 2.5, label: 'सां' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.8, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 3.8, durationSec: 1.8, label: 'रे', type: 'user' },
+      { swaraId: 'g', startTimeSec: 6.1, durationSec: 2.5, label: 'ग॒', type: 'user' },
+      { swaraId: 'm', startTimeSec: 9.1, durationSec: 1.8, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 11.4, durationSec: 1.8, label: 'प', type: 'user' },
+      { swaraId: 'd', startTimeSec: 13.7, durationSec: 1.8, label: 'ध॒', type: 'user' },
+      { swaraId: 'n', startTimeSec: 16.0, durationSec: 2.2, label: 'नि॒', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 18.8, durationSec: 2.5, label: 'सां', type: 'user' }
+    ],
+    totalRoundSec: 22.3
   },
   {
     id: 'lesson_teevra_ma',
@@ -675,16 +699,17 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Teevra Ma has a magnetic pull toward Pancham. Sing it proud and bright (590 cents), not shy.',
       targetRaga: 'Raga Yaman, Kalyan, Marwa'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
-      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
-      { swaraId: 'G', durationSec: 2.0, label: 'ग' },
-      { swaraId: 'M', durationSec: 2.5, label: 'म॑' },
-      { swaraId: 'P', durationSec: 2.5, label: 'प' },
-      { swaraId: 'M', durationSec: 2.0, label: 'म॑' },
-      { swaraId: 'G', durationSec: 1.8, label: 'ग' },
-      { swaraId: 'S', durationSec: 2.2, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.8, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 3.8, durationSec: 1.8, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 6.1, durationSec: 2.0, label: 'ग', type: 'user' },
+      { swaraId: 'M', startTimeSec: 8.6, durationSec: 2.5, label: 'म॑', type: 'user' },
+      { swaraId: 'P', startTimeSec: 11.6, durationSec: 2.5, label: 'प', type: 'user' },
+      { swaraId: 'M', startTimeSec: 14.6, durationSec: 2.0, label: 'म॑', type: 'user' },
+      { swaraId: 'G', startTimeSec: 17.1, durationSec: 1.8, label: 'ग', type: 'user' },
+      { swaraId: 'S', startTimeSec: 19.4, durationSec: 2.2, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 22.6
   },
   {
     id: 'lesson_all_four_komal',
@@ -703,16 +728,17 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Think of Komal notes as tender petals opening around the sturdy branches of Sa and Pa.',
       targetRaga: 'Raga Bhairavi (Queen of Ragas)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
-      { swaraId: 'r', durationSec: 1.8, label: 'रे॒' },
-      { swaraId: 'g', durationSec: 2.0, label: 'ग॒' },
-      { swaraId: 'm', durationSec: 1.8, label: 'म' },
-      { swaraId: 'P', durationSec: 1.8, label: 'प' },
-      { swaraId: 'd', durationSec: 1.8, label: 'ध॒' },
-      { swaraId: 'n', durationSec: 2.0, label: 'नि॒' },
-      { swaraId: 'S_taar', durationSec: 2.5, label: 'सां' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.8, label: 'सा', type: 'user' },
+      { swaraId: 'r', startTimeSec: 3.8, durationSec: 1.8, label: 'रे॒', type: 'user' },
+      { swaraId: 'g', startTimeSec: 6.1, durationSec: 2.0, label: 'ग॒', type: 'user' },
+      { swaraId: 'm', startTimeSec: 8.6, durationSec: 1.8, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 10.9, durationSec: 1.8, label: 'प', type: 'user' },
+      { swaraId: 'd', startTimeSec: 13.2, durationSec: 1.8, label: 'ध॒', type: 'user' },
+      { swaraId: 'n', startTimeSec: 15.5, durationSec: 2.0, label: 'नि॒', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 18.1, durationSec: 2.5, label: 'सां', type: 'user' }
+    ],
+    totalRoundSec: 21.6
   },
 
   // =========================================================================
@@ -735,19 +761,20 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Keep your tongue nimble and teeth slightly parted. Re-attack each note from breath, not by clamping throat.',
       targetRaga: 'Palta Exercise (Alankar 2)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.0, label: 'सा' },
-      { swaraId: 'S', durationSec: 1.0, label: 'सा' },
-      { swaraId: 'R', durationSec: 1.0, label: 'रे' },
-      { swaraId: 'R', durationSec: 1.0, label: 'रे' },
-      { swaraId: 'G', durationSec: 1.0, label: 'ग' },
-      { swaraId: 'G', durationSec: 1.0, label: 'ग' },
-      { swaraId: 'm', durationSec: 1.0, label: 'म' },
-      { swaraId: 'm', durationSec: 1.0, label: 'म' },
-      { swaraId: 'P', durationSec: 1.0, label: 'प' },
-      { swaraId: 'P', durationSec: 1.0, label: 'प' },
-      { swaraId: 'S_taar', durationSec: 2.0, label: 'सां' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.0, label: 'सा', type: 'user' },
+      { swaraId: 'S', startTimeSec: 2.8, durationSec: 1.0, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 4.1, durationSec: 1.0, label: 'रे', type: 'user' },
+      { swaraId: 'R', startTimeSec: 5.4, durationSec: 1.0, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 6.7, durationSec: 1.0, label: 'ग', type: 'user' },
+      { swaraId: 'G', startTimeSec: 8.0, durationSec: 1.0, label: 'ग', type: 'user' },
+      { swaraId: 'm', startTimeSec: 9.3, durationSec: 1.0, label: 'म', type: 'user' },
+      { swaraId: 'm', startTimeSec: 10.6, durationSec: 1.0, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 11.9, durationSec: 1.0, label: 'प', type: 'user' },
+      { swaraId: 'P', startTimeSec: 13.2, durationSec: 1.0, label: 'प', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 14.6, durationSec: 2.0, label: 'सां', type: 'user' }
+    ],
+    totalRoundSec: 17.6
   },
   {
     id: 'lesson_triplet_palta',
@@ -766,24 +793,25 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Sing like a cascading waterfall — legato and connected, but with crystal clear pitch landmarks.',
       targetRaga: 'Taan Foundation (Alankar 3)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 0.8, label: 'सा' },
-      { swaraId: 'R', durationSec: 0.8, label: 'रे' },
-      { swaraId: 'G', durationSec: 1.2, label: 'ग' },
-      { swaraId: 'R', durationSec: 0.8, label: 'रे' },
-      { swaraId: 'G', durationSec: 0.8, label: 'ग' },
-      { swaraId: 'm', durationSec: 1.2, label: 'म' },
-      { swaraId: 'G', durationSec: 0.8, label: 'ग' },
-      { swaraId: 'm', durationSec: 0.8, label: 'म' },
-      { swaraId: 'P', durationSec: 1.2, label: 'प' },
-      { swaraId: 'm', durationSec: 0.8, label: 'म' },
-      { swaraId: 'P', durationSec: 0.8, label: 'प' },
-      { swaraId: 'D', durationSec: 1.2, label: 'ध' },
-      { swaraId: 'P', durationSec: 0.8, label: 'प' },
-      { swaraId: 'D', durationSec: 0.8, label: 'ध' },
-      { swaraId: 'N', durationSec: 1.2, label: 'नि' },
-      { swaraId: 'S_taar', durationSec: 2.0, label: 'सां' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 0.8, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 2.6, durationSec: 0.8, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 3.7, durationSec: 1.2, label: 'ग', type: 'user' },
+      { swaraId: 'R', startTimeSec: 5.4, durationSec: 0.8, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 6.5, durationSec: 0.8, label: 'ग', type: 'user' },
+      { swaraId: 'm', startTimeSec: 7.6, durationSec: 1.2, label: 'म', type: 'user' },
+      { swaraId: 'G', startTimeSec: 9.3, durationSec: 0.8, label: 'ग', type: 'user' },
+      { swaraId: 'm', startTimeSec: 10.4, durationSec: 0.8, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 11.5, durationSec: 1.2, label: 'प', type: 'user' },
+      { swaraId: 'm', startTimeSec: 13.2, durationSec: 0.8, label: 'म', type: 'user' },
+      { swaraId: 'P', startTimeSec: 14.3, durationSec: 0.8, label: 'प', type: 'user' },
+      { swaraId: 'D', startTimeSec: 15.4, durationSec: 1.2, label: 'ध', type: 'user' },
+      { swaraId: 'P', startTimeSec: 17.1, durationSec: 0.8, label: 'प', type: 'user' },
+      { swaraId: 'D', startTimeSec: 18.2, durationSec: 0.8, label: 'ध', type: 'user' },
+      { swaraId: 'N', startTimeSec: 19.3, durationSec: 1.2, label: 'नि', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 21.1, durationSec: 2.0, label: 'सां', type: 'user' }
+    ],
+    totalRoundSec: 24.1
   },
   {
     id: 'lesson_skip_palta',
@@ -802,20 +830,21 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Keep your vocal tract domed like an umbrella. Let the higher note ring effortlessly without neck veins bulging.',
       targetRaga: 'Chhalang Palta (Alankar 4)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 0.9, label: 'सा' },
-      { swaraId: 'G', durationSec: 1.1, label: 'ग' },
-      { swaraId: 'R', durationSec: 0.9, label: 'रे' },
-      { swaraId: 'm', durationSec: 1.1, label: 'म' },
-      { swaraId: 'G', durationSec: 0.9, label: 'ग' },
-      { swaraId: 'P', durationSec: 1.1, label: 'प' },
-      { swaraId: 'm', durationSec: 0.9, label: 'म' },
-      { swaraId: 'D', durationSec: 1.1, label: 'ध' },
-      { swaraId: 'P', durationSec: 0.9, label: 'प' },
-      { swaraId: 'N', durationSec: 1.1, label: 'नि' },
-      { swaraId: 'D', durationSec: 0.9, label: 'ध' },
-      { swaraId: 'S_taar', durationSec: 2.0, label: 'सां' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 0.9, label: 'सा', type: 'user' },
+      { swaraId: 'G', startTimeSec: 2.7, durationSec: 1.1, label: 'ग', type: 'user' },
+      { swaraId: 'R', startTimeSec: 4.3, durationSec: 0.9, label: 'रे', type: 'user' },
+      { swaraId: 'm', startTimeSec: 5.5, durationSec: 1.1, label: 'म', type: 'user' },
+      { swaraId: 'G', startTimeSec: 7.1, durationSec: 0.9, label: 'ग', type: 'user' },
+      { swaraId: 'P', startTimeSec: 8.3, durationSec: 1.1, label: 'प', type: 'user' },
+      { swaraId: 'm', startTimeSec: 9.9, durationSec: 0.9, label: 'म', type: 'user' },
+      { swaraId: 'D', startTimeSec: 11.1, durationSec: 1.1, label: 'ध', type: 'user' },
+      { swaraId: 'P', startTimeSec: 12.7, durationSec: 0.9, label: 'प', type: 'user' },
+      { swaraId: 'N', startTimeSec: 13.9, durationSec: 1.1, label: 'नि', type: 'user' },
+      { swaraId: 'D', startTimeSec: 15.5, durationSec: 0.9, label: 'ध', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 16.7, durationSec: 2.0, label: 'सां', type: 'user' }
+    ],
+    totalRoundSec: 19.7
   },
 
   // =========================================================================
@@ -838,17 +867,18 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'In Yaman, Sa is often omitted in the beginning (नि रे ग). Let Gandhar bloom with sweet, gentle warmth.',
       targetRaga: 'Raga Yaman (Evening Peace)'
     },
-    targetNotes: [
-      { swaraId: 'N', durationSec: 1.8, label: 'नि' },
-      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
-      { swaraId: 'G', durationSec: 2.5, label: 'ग' },
-      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
-      { swaraId: 'S', durationSec: 2.5, label: 'सा' },
-      { swaraId: 'M', durationSec: 1.8, label: 'म॑' },
-      { swaraId: 'D', durationSec: 1.8, label: 'ध' },
-      { swaraId: 'N', durationSec: 2.0, label: 'नि' },
-      { swaraId: 'S_taar', durationSec: 2.8, label: 'सां' }
-    ]
+    targetBlocks: [
+      { swaraId: 'N', startTimeSec: 1.5, durationSec: 1.8, label: 'नि', type: 'user' },
+      { swaraId: 'R', startTimeSec: 3.8, durationSec: 1.8, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 6.1, durationSec: 2.5, label: 'ग', type: 'user' },
+      { swaraId: 'R', startTimeSec: 9.1, durationSec: 1.8, label: 'रे', type: 'user' },
+      { swaraId: 'S', startTimeSec: 11.4, durationSec: 2.5, label: 'सा', type: 'user' },
+      { swaraId: 'M', startTimeSec: 14.4, durationSec: 1.8, label: 'म॑', type: 'user' },
+      { swaraId: 'D', startTimeSec: 16.7, durationSec: 1.8, label: 'ध', type: 'user' },
+      { swaraId: 'N', startTimeSec: 19.0, durationSec: 2.0, label: 'नि', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 21.5, durationSec: 2.8, label: 'सां', type: 'user' }
+    ],
+    totalRoundSec: 25.3
   },
   {
     id: 'lesson_raga_bhupali',
@@ -867,19 +897,20 @@ export const PRACTICE_LESSONS: PracticeLesson[] = [
       secretTip: 'Without Ma and Ni, each note stands bold and tall. Keep Gandhar and Dhaivat ringing like silver bells.',
       targetRaga: 'Raga Bhupali (Joy & Devotion)'
     },
-    targetNotes: [
-      { swaraId: 'S', durationSec: 1.6, label: 'सा' },
-      { swaraId: 'R', durationSec: 1.6, label: 'रे' },
-      { swaraId: 'G', durationSec: 2.2, label: 'ग' },
-      { swaraId: 'P', durationSec: 1.8, label: 'प' },
-      { swaraId: 'D', durationSec: 1.8, label: 'ध' },
-      { swaraId: 'S_taar', durationSec: 2.5, label: 'सां' },
-      { swaraId: 'S_taar', durationSec: 1.6, label: 'सां' },
-      { swaraId: 'D', durationSec: 1.6, label: 'ध' },
-      { swaraId: 'P', durationSec: 2.0, label: 'प' },
-      { swaraId: 'G', durationSec: 1.8, label: 'ग' },
-      { swaraId: 'R', durationSec: 1.6, label: 'रे' },
-      { swaraId: 'S', durationSec: 2.8, label: 'सा' }
-    ]
+    targetBlocks: [
+      { swaraId: 'S', startTimeSec: 1.5, durationSec: 1.6, label: 'सा', type: 'user' },
+      { swaraId: 'R', startTimeSec: 3.6, durationSec: 1.6, label: 'रे', type: 'user' },
+      { swaraId: 'G', startTimeSec: 5.7, durationSec: 2.2, label: 'ग', type: 'user' },
+      { swaraId: 'P', startTimeSec: 8.4, durationSec: 1.8, label: 'प', type: 'user' },
+      { swaraId: 'D', startTimeSec: 10.7, durationSec: 1.8, label: 'ध', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 13.0, durationSec: 2.5, label: 'सां', type: 'user' },
+      { swaraId: 'S_taar', startTimeSec: 16.0, durationSec: 1.6, label: 'सां', type: 'user' },
+      { swaraId: 'D', startTimeSec: 18.1, durationSec: 1.6, label: 'ध', type: 'user' },
+      { swaraId: 'P', startTimeSec: 20.2, durationSec: 2.0, label: 'प', type: 'user' },
+      { swaraId: 'G', startTimeSec: 22.7, durationSec: 1.8, label: 'ग', type: 'user' },
+      { swaraId: 'R', startTimeSec: 25.0, durationSec: 1.6, label: 'रे', type: 'user' },
+      { swaraId: 'S', startTimeSec: 27.1, durationSec: 2.8, label: 'सा', type: 'user' }
+    ],
+    totalRoundSec: 30.9
   }
 ];
