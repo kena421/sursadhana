@@ -23,6 +23,8 @@ interface NoteHighwayCanvasProps {
   activeRemainingSec?: number;
   audioLevel?: number; // 0 to 1 live volume level of singing voice
   totalRoundSec?: number;
+  singleRoundSec?: number;
+  totalRounds?: number;
   isUserTurn?: boolean; // only plot user mic when it is user's turn (avoids speaker echo)
 
   // Scrollback & Review Mode Props
@@ -45,6 +47,8 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
   recordedPoints = [],
   onScrubTime,
   totalRoundSec = 10,
+  singleRoundSec,
+  totalRounds = 1,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const particlesRef = useRef<Particle[]>([]);
@@ -56,32 +60,38 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
   const dragStartXRef = useRef<number>(0);
   const dragStartTimeRef = useRef<number>(0);
 
-  // Keep live user pitch trail updated ONLY during live user's turn
-  useEffect(() => {
-    if (isReviewMode) return;
+  // Always keep all props in a ref so the RAF loop runs uninterrupted without cancellation churn
+  const propsRef = useRef({
+    currentPitch,
+    targetBlocks,
+    exerciseStartTimeMs,
+    stage,
+    isHitActive,
+    audioLevel,
+    isUserTurn,
+    isReviewMode,
+    reviewElapsedSec,
+    recordedPoints,
+    singleRoundSec,
+    totalRounds,
+  });
 
-    if (stage === 'practicing' && isUserTurn && currentPitch) {
-      const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
-      const basePos = swaraIndex !== -1 ? swaraIndex : 0;
-      const pos = basePos + currentPitch.centsDeviation / 100;
+  propsRef.current = {
+    currentPitch,
+    targetBlocks,
+    exerciseStartTimeMs,
+    stage,
+    isHitActive,
+    audioLevel,
+    isUserTurn,
+    isReviewMode,
+    reviewElapsedSec,
+    recordedPoints,
+    singleRoundSec,
+    totalRounds,
+  };
 
-      userPitchTrailRef.current.push({
-        timeMs: performance.now(),
-        semitonePos: pos,
-        isInSur: currentPitch.isInSur,
-      });
-
-      // Keep last 8 seconds of pitch history in live view
-      const cutoff = performance.now() - 8000;
-      userPitchTrailRef.current = userPitchTrailRef.current.filter(p => p.timeMs > cutoff);
-    } else if (stage === 'idle' || !isUserTurn) {
-      if (!isUserTurn) {
-        userPitchTrailRef.current = [];
-      }
-    }
-  }, [currentPitch, stage, isUserTurn, isReviewMode]);
-
-  // Main Canvas Rendering Loop
+  // Main Canvas Rendering Loop - runs continuously at 60fps
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -95,6 +105,44 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
 
     const render = () => {
       if (!isRunning) return;
+
+      const {
+        currentPitch: curPitch,
+        targetBlocks: curTargetBlocks,
+        exerciseStartTimeMs: curStartTimeMs,
+        stage: curStage,
+        isHitActive: curHitActive,
+        audioLevel: curAudioLevel,
+        isUserTurn: curUserTurn,
+        isReviewMode: curReviewMode,
+        reviewElapsedSec: curReviewElapsedSec,
+        recordedPoints: curRecordedPoints,
+        singleRoundSec: curSingleRoundSec,
+        totalRounds: curTotalRounds,
+      } = propsRef.current;
+
+      const now = performance.now();
+
+      // Continuous pitch trail recording in lockstep with rendering
+      if (!curReviewMode && curStage === 'practicing' && curUserTurn && curPitch) {
+        const swaraIndex = SWARAS.findIndex(s => s.id === curPitch.swara.id);
+        const basePos = swaraIndex !== -1 ? swaraIndex : 0;
+        const pos = basePos + curPitch.centsDeviation / 100;
+
+        userPitchTrailRef.current.push({
+          timeMs: now,
+          semitonePos: pos,
+          isInSur: curPitch.isInSur,
+        });
+
+        // Keep last 8 seconds of pitch history in live view
+        const cutoff = now - 8000;
+        userPitchTrailRef.current = userPitchTrailRef.current.filter(p => p.timeMs > cutoff);
+      } else if (curStage === 'idle' || !curUserTurn) {
+        if (!curUserTurn) {
+          userPitchTrailRef.current = [];
+        }
+      }
 
       const dpr = window.devicePixelRatio || 1;
       const width = canvas.clientWidth;
@@ -138,12 +186,11 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.stroke();
       }
 
-      // Elapsed Time for Scroll Calculation
-      const now = performance.now();
-      const elapsedSec = isReviewMode
-        ? reviewElapsedSec
-        : exerciseStartTimeMs !== null
-        ? (now - exerciseStartTimeMs) / 1000
+      // Elapsed Time for Scroll Calculation (Smooth & Continuous)
+      const elapsedSec = curReviewMode
+        ? curReviewElapsedSec
+        : curStartTimeMs !== null
+        ? (now - curStartTimeMs) / 1000
         : 0;
 
       // Vertical Measure Beat Lines (Dividers every 100px)
@@ -159,7 +206,41 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.stroke();
       }
 
-      // 3. Left-of-Playhead Spotlight Luminous Glow (as seen in Padhanisa screenshot)
+      // Vertical Round Boundary Dividers (Clear visual indicators between rounds)
+      if (curSingleRoundSec && curSingleRoundSec > 0 && curTotalRounds && curTotalRounds > 1) {
+        for (let r = 1; r < curTotalRounds; r++) {
+          const roundStartSec = r * curSingleRoundSec;
+          const rx = playheadX + (roundStartSec - elapsedSec) * pixelsPerSec;
+
+          if (rx > sidebarWidth && rx < width) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.moveTo(rx, 0);
+            ctx.lineTo(rx, height);
+            ctx.stroke();
+
+            // Round Badge Pill
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(rx - 30, 26, 60, 18, 9);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.font = 'bold 9px "Outfit", sans-serif';
+            ctx.fillStyle = '#38BDF8';
+            ctx.textAlign = 'center';
+            ctx.fillText(`ROUND ${r + 1}`, rx, 39);
+            ctx.restore();
+          }
+        }
+      }
+
+      // 3. Left-of-Playhead Spotlight Luminous Glow (as seen in Padhanisa)
       const leftSpotlight = ctx.createLinearGradient(playheadX - 140, 0, playheadX, 0);
       leftSpotlight.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
       leftSpotlight.addColorStop(1, 'rgba(255, 255, 255, 0.06)');
@@ -175,12 +256,14 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       let activeRemaining = 0;
 
       // 4. Draw Connecting Melody Step Lines
-      if (targetBlocks.length > 1) {
-        for (let i = 0; i < targetBlocks.length - 1; i++) {
-          const b1 = targetBlocks[i];
-          const b2 = targetBlocks[i + 1];
+      if (curTargetBlocks.length > 1) {
+        for (let i = 0; i < curTargetBlocks.length - 1; i++) {
+          const b1 = curTargetBlocks[i];
+          const b2 = curTargetBlocks[i + 1];
 
-          if (b1.type === b2.type) {
+          // Only connect notes that are close together (within 2.5s gap), not across long round intervals
+          const gapSec = b2.startTimeSec - (b1.startTimeSec + b1.durationSec);
+          if (b1.type === b2.type && gapSec <= 2.5 && gapSec >= -0.1) {
             const idx1 = SWARAS.findIndex(s => s.id === b1.swaraId);
             const idx2 = SWARAS.findIndex(s => s.id === b2.swaraId);
             if (idx1 !== -1 && idx2 !== -1) {
@@ -192,7 +275,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
 
               if (x2 > sidebarWidth && x1 < width) {
                 ctx.save();
-                ctx.strokeStyle = isReviewMode
+                ctx.strokeStyle = curReviewMode
                   ? 'rgba(255, 122, 0, 0.35)'
                   : b1.type === 'assisted'
                   ? 'rgba(245, 158, 11, 0.25)'
@@ -212,13 +295,13 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       }
 
       // 5. Draw Target Note Bars (Expected Swara Blocks)
-      if (targetBlocks.length > 0) {
-        for (const block of targetBlocks) {
+      if (curTargetBlocks.length > 0) {
+        for (const block of curTargetBlocks) {
           const swaraIdx = SWARAS.findIndex(s => s.id === block.swaraId);
           if (swaraIdx === -1) continue;
           const laneY = (totalLanes - 1 - swaraIdx) * laneHeight;
 
-          // Compute X based on scroll
+          // Compute X based on continuous scroll
           const blockFrontX = playheadX + (block.startTimeSec - elapsedSec) * pixelsPerSec;
           const blockWidth = block.durationSec * pixelsPerSec;
           const blockBackX = blockFrontX + blockWidth;
@@ -241,7 +324,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
               ctx.beginPath();
               ctx.roundRect(rx, laneY + 5, rw, laneHeight - 10, 6);
 
-              if (isReviewMode) {
+              if (curReviewMode) {
                 // REVIEW MODE: Expected note bar with elegant amber outline
                 if (isCrossingPlayhead) {
                   ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
@@ -278,7 +361,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
               } else {
                 // LIVE USER (YOU) NOTE: PADHANISA ORANGE & GREEN
                 if (isCrossingPlayhead) {
-                  if (isHitActive) {
+                  if (curHitActive) {
                     ctx.shadowBlur = 22;
                     ctx.shadowColor = '#22C55E';
                     ctx.fillStyle = '#22C55E';
@@ -306,7 +389,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
               ctx.restore();
 
               // If crossing playhead in live mode, draw progress fill
-              if (!isReviewMode && isCrossingPlayhead && playheadX > rx) {
+              if (!curReviewMode && isCrossingPlayhead && playheadX > rx) {
                 const filledWidth = Math.min(rw, playheadX - rx);
                 ctx.save();
                 ctx.beginPath();
@@ -315,7 +398,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                 if (isAssisted) {
                   ctx.fillStyle = 'rgba(251, 191, 36, 0.85)';
                 } else {
-                  ctx.fillStyle = isHitActive ? 'rgba(34, 197, 94, 0.9)' : 'rgba(255, 122, 0, 0.85)';
+                  ctx.fillStyle = curHitActive ? 'rgba(34, 197, 94, 0.9)' : 'rgba(255, 122, 0, 0.85)';
                 }
                 ctx.fill();
                 ctx.restore();
@@ -328,7 +411,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                 ctx.font = 'bold 11px "Outfit", sans-serif';
                 ctx.fillStyle = '#FFFFFF';
 
-                const rolePrefix = isReviewMode ? '🎯 EXPECTED' : isAssisted ? '🎧 GURU' : '🎤 YOU';
+                const rolePrefix = curReviewMode ? '🎯 EXPECTED' : isAssisted ? '🎧 GURU' : '🎤 YOU';
                 if (isCrossingPlayhead) {
                   ctx.fillText(`${rolePrefix} • ${block.label}`, labelX, laneY + laneHeight * 0.65);
                 } else {
@@ -339,8 +422,8 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
             }
 
             // Spawn spark particles on hit (live mode only)
-            if (!isReviewMode) {
-              const shouldSpark = isCrossingPlayhead && (isAssisted || isHitActive);
+            if (!curReviewMode) {
+              const shouldSpark = isCrossingPlayhead && (isAssisted || curHitActive);
               if (shouldSpark && Math.random() < 0.6) {
                 particlesRef.current.push({
                   x: playheadX,
@@ -348,7 +431,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
                   vx: -(Math.random() * 2 + 1),
                   vy: (Math.random() - 0.5) * 2,
                   size: Math.random() * 3 + 2,
-                  color: isAssisted ? '#FBBF24' : isHitActive ? '#22C55E' : '#FF7A00',
+                  color: isAssisted ? '#FBBF24' : curHitActive ? '#22C55E' : '#FF7A00',
                   alpha: 1,
                   life: 28,
                 });
@@ -365,15 +448,15 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         // ==========================================================
         // REVIEW MODE: RENDER ENTIRE RECORDED PITCH CURVE
         // ==========================================================
-        if (recordedPoints && recordedPoints.length > 0) {
+        if (curRecordedPoints && curRecordedPoints.length > 0) {
           ctx.save();
 
           // Group consecutive points where time difference <= 0.18s
           const segments: RecordedPitchPoint[][] = [];
           let curSeg: RecordedPitchPoint[] = [];
 
-          for (let i = 0; i < recordedPoints.length; i++) {
-            const pt = recordedPoints[i];
+          for (let i = 0; i < curRecordedPoints.length; i++) {
+            const pt = curRecordedPoints[i];
             if (curSeg.length === 0) {
               curSeg.push(pt);
             } else {
@@ -558,7 +641,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       // =========================================================================
       if (isReviewMode) {
         // Find nearest recorded pitch point at playhead time (within ±0.15s)
-        const recordedAtPlayhead = (recordedPoints || []).find(
+        const recordedAtPlayhead = (curRecordedPoints || []).find(
           p => Math.abs(p.timeSec - elapsedSec) <= 0.15
         );
 
@@ -633,17 +716,17 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
           ctx.fillText(pillText, pillX + 8, pillY + 15);
           ctx.restore();
         }
-      } else if (stage !== 'idle' && isUserTurn && currentPitch) {
+      } else if (curStage !== 'idle' && curUserTurn && curPitch) {
         // LIVE MODE CURSOR DOT
-        const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
+        const swaraIndex = SWARAS.findIndex(s => s.id === curPitch.swara.id);
         const basePos = swaraIndex !== -1 ? swaraIndex : 0;
-        const currentPos = basePos + currentPitch.centsDeviation / 100;
+        const currentPos = basePos + curPitch.centsDeviation / 100;
         const dotY = height - (currentPos + 0.5) * laneHeight;
-        const userVol = Math.max(0.15, audioLevel || currentPitch.clarity * 0.7);
+        const userVol = Math.max(0.15, curAudioLevel || curPitch.clarity * 0.7);
         const dotRadius = 7 + userVol * 8;
 
         ctx.save();
-        const dotColor = currentPitch.isInSur ? '#22C55E' : '#FF7A00';
+        const dotColor = curPitch.isInSur ? '#22C55E' : '#FF7A00';
         ctx.shadowBlur = 22;
         ctx.shadowColor = dotColor;
         ctx.fillStyle = dotColor;
@@ -657,7 +740,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.arc(playheadX, dotY, 4, 0, Math.PI * 2);
         ctx.fill();
 
-        if (currentPitch.isInSur) {
+        if (curPitch.isInSur) {
           ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
           ctx.lineWidth = 2;
           ctx.beginPath();
@@ -710,8 +793,8 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       let statusText = '';
       let bannerColor = '#F59E0B';
 
-      if (isReviewMode) {
-        const nearestRec = (recordedPoints || []).find(
+      if (curReviewMode) {
+        const nearestRec = (curRecordedPoints || []).find(
           p => Math.abs(p.timeSec - elapsedSec) <= 0.15
         );
 
@@ -786,17 +869,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         cancelAnimationFrame(animRef.current);
       }
     };
-  }, [
-    stage,
-    exerciseStartTimeMs,
-    targetBlocks,
-    isHitActive,
-    currentPitch,
-    audioLevel,
-    isReviewMode,
-    reviewElapsedSec,
-    recordedPoints,
-  ]);
+  }, []);
 
   // Mouse / Touch Interaction for Direct Canvas Drag-Scrubbing
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {

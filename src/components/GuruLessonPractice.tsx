@@ -136,7 +136,6 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
   const [analysis, setAnalysis] = useState<PerformanceAnalysis | null>(null);
   const [noteBreakdowns, setNoteBreakdowns] = useState<NotePerformanceSummary[]>([]);
 
-  const recordedPointsRef = useRef<RecordedPitchPoint[]>([]);
   const allSessionPointsRef = useRef<RecordedPitchPoint[]>([]);
   const roundTransitionTimeoutRef = useRef<number | null>(null);
 
@@ -239,25 +238,49 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     }
   }, [currentPitch, stage]);
 
-  // Static pre-timed target blocks & total duration directly from selected lesson
-  const targetBlocks: HighwayTargetBlock[] = selectedLesson.targetBlocks;
-  const totalRoundSec: number = selectedLesson.totalRoundSec;
+  // Single round duration and total multi-round session duration
+  const singleRoundSec: number = selectedLesson.totalRoundSec;
+  const totalSessionSec: number = totalRounds * singleRoundSec;
+
+  // Seamless continuous target blocks tiled for all rounds in the practice session
+  const continuousTargetBlocks = useMemo<HighwayTargetBlock[]>(() => {
+    const blocks: HighwayTargetBlock[] = [];
+    for (let r = 0; r < totalRounds; r++) {
+      const rOffset = r * singleRoundSec;
+      for (const b of selectedLesson.targetBlocks) {
+        blocks.push({
+          ...b,
+          startTimeSec: b.startTimeSec + rOffset,
+        });
+      }
+    }
+    return blocks;
+  }, [selectedLesson, totalRounds, singleRoundSec]);
 
   // Live breath hold tracking for Long Sa
   const liveHeldSec = useMemo(() => {
     if (!activeBlock || activeBlock.type !== 'user') return 0;
-    const pts = recordedPointsRef.current.filter(p => p.swaraId === activeBlock.swaraId && p.isInSur);
+    const pts = allSessionPointsRef.current.filter(
+      p => p.swaraId === activeBlock.swaraId &&
+           p.isInSur &&
+           p.timeSec >= activeBlock.startTimeSec &&
+           p.timeSec <= activeBlock.startTimeSec + activeBlock.durationSec
+    );
     return Math.min(activeBlock.durationSec, Math.round(pts.length * 0.05 * 10) / 10);
-  }, [activeBlock]);
+  }, [activeBlock, elapsedExerciseSec]);
 
   // Live pitch stability percentage
   const liveStability = useMemo(() => {
     if (!activeBlock || activeBlock.type !== 'user') return 100;
-    const pts = recordedPointsRef.current.filter(p => p.swaraId === activeBlock.swaraId);
+    const pts = allSessionPointsRef.current.filter(
+      p => p.swaraId === activeBlock.swaraId &&
+           p.timeSec >= activeBlock.startTimeSec &&
+           p.timeSec <= activeBlock.startTimeSec + activeBlock.durationSec
+    );
     if (pts.length === 0) return 100;
     const inSur = pts.filter(p => p.isInSur).length;
     return Math.round((inSur / pts.length) * 100);
-  }, [activeBlock]);
+  }, [activeBlock, elapsedExerciseSec]);
 
   // Active Review Round selection & bounds
   const activeReviewRound = useMemo(() => {
@@ -270,22 +293,19 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     if (activeReviewRound && activeReviewRound.totalSec > 0) {
       return activeReviewRound.totalSec;
     }
-    return totalRoundSec;
-  }, [activeReviewRound, totalRoundSec]);
+    return singleRoundSec;
+  }, [activeReviewRound, singleRoundSec]);
 
   const activeReviewTargetBlocks = useMemo(() => {
     if (activeReviewRound?.targetBlocks && activeReviewRound.targetBlocks.length > 0) {
       return activeReviewRound.targetBlocks;
     }
-    return targetBlocks;
-  }, [activeReviewRound, targetBlocks]);
+    return selectedLesson.targetBlocks;
+  }, [activeReviewRound, selectedLesson]);
 
   const activeReviewRecordedPoints = useMemo(() => {
     if (activeReviewRound?.recordedPoints && activeReviewRound.recordedPoints.length > 0) {
       return activeReviewRound.recordedPoints;
-    }
-    if (recordedPointsRef.current.length > 0) {
-      return recordedPointsRef.current;
     }
     return allSessionPointsRef.current;
   }, [activeReviewRound]);
@@ -332,6 +352,16 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     };
   }, [isReviewPlaying, activeReviewTotalSec]);
 
+  // Ref for currentPitch so RAF loop does not need currentPitch in deps
+  const currentPitchRef = useRef<DetectedPitch | null>(currentPitch);
+  useEffect(() => {
+    currentPitchRef.current = currentPitch;
+  }, [currentPitch]);
+
+  // Trackers for round transitions and throttled UI updates
+  const lastCompletedRoundRef = useRef<number>(0);
+  const lastUiUpdateMsRef = useRef<number>(0);
+
   // Main continuous animation loop during live practice
   useEffect(() => {
     if (stage !== 'practicing' || exerciseStartTimeMs === null) return;
@@ -341,19 +371,26 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     const tick = () => {
       const now = performance.now();
       const elapsedSec = (now - exerciseStartTimeMs) / 1000;
-      setElapsedExerciseSec(elapsedSec);
 
-      // Check which block is currently crossing the playhead
-      const crossingBlock = targetBlocks.find(
+      // Throttle UI timer/scrubber state updates to ~15 FPS to keep main thread silky smooth
+      if (now - lastUiUpdateMsRef.current >= 66) {
+        lastUiUpdateMsRef.current = now;
+        setElapsedExerciseSec(elapsedSec);
+      }
+
+      // Check which block is currently crossing the playhead across the entire continuous session
+      const crossingBlock = continuousTargetBlocks.find(
         b => elapsedSec >= b.startTimeSec && elapsedSec <= b.startTimeSec + b.durationSec
       );
+
+      const pitch = currentPitchRef.current;
 
       if (crossingBlock) {
         setActiveBlock(crossingBlock);
         setActiveBlockRemainingSec(Math.max(0, (crossingBlock.startTimeSec + crossingBlock.durationSec) - elapsedSec));
 
         // Evaluate pitch match against target swara
-        const isMatch = currentPitch && currentPitch.swara.id === crossingBlock.swaraId && currentPitch.isInSur;
+        const isMatch = pitch && pitch.swara.id === crossingBlock.swaraId && pitch.isInSur;
         setIsHitActive(!!isMatch);
       } else {
         setActiveBlock(null);
@@ -361,26 +398,78 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
         setIsHitActive(false);
       }
 
-      // Record singing pitch continuously throughout practice (including note transitions)
-      if (currentPitch) {
-        const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
-        const semitonePos = (swaraIndex !== -1 ? swaraIndex : 0) + currentPitch.centsDeviation / 100;
+      // Record singing pitch continuously throughout practice
+      if (pitch) {
+        const swaraIndex = SWARAS.findIndex(s => s.id === pitch.swara.id);
+        const semitonePos = (swaraIndex !== -1 ? swaraIndex : 0) + pitch.centsDeviation / 100;
 
         const pt: RecordedPitchPoint = {
           timeSec: elapsedSec,
-          frequency: currentPitch.frequency,
-          centsDeviation: currentPitch.centsDeviation,
-          isInSur: currentPitch.isInSur,
-          swaraId: currentPitch.swara.id,
+          frequency: pitch.frequency,
+          centsDeviation: pitch.centsDeviation,
+          isInSur: pitch.isInSur,
+          swaraId: pitch.swara.id,
           semitonePos,
         };
-        recordedPointsRef.current.push(pt);
         allSessionPointsRef.current.push(pt);
       }
 
-      // Check if current round has completed
-      if (elapsedSec >= totalRoundSec) {
-        handleRoundComplete();
+      // Dynamically update currentRound state for UI display
+      const currentR = Math.min(totalRounds, Math.floor(elapsedSec / singleRoundSec) + 1);
+      setCurrentRound(currentR);
+
+      // Check round boundaries seamlessly without stopping or resetting the highway!
+      for (let r = 1; r < totalRounds; r++) {
+        if (elapsedSec >= r * singleRoundSec && lastCompletedRoundRef.current < r) {
+          lastCompletedRoundRef.current = r;
+
+          // Compute round r stats
+          const rStart = (r - 1) * singleRoundSec;
+          const rEnd = r * singleRoundSec;
+          const rPts = allSessionPointsRef.current.filter(p => p.timeSec >= rStart && p.timeSec < rEnd);
+          const normalizedPts = rPts.map(p => ({
+            ...p,
+            timeSec: Math.max(0, p.timeSec - rStart),
+          }));
+          const inSurPts = normalizedPts.filter(p => p.isInSur);
+          const roundAcc = normalizedPts.length > 0 ? Math.min(100, Math.round((inSurPts.length / normalizedPts.length) * 100)) : 0;
+
+          let sumDev = 0;
+          normalizedPts.forEach(p => sumDev += p.centsDeviation);
+          const avgDev = normalizedPts.length > 0 ? Math.round((sumDev / normalizedPts.length) * 10) / 10 : 0;
+
+          let varSum = 0;
+          normalizedPts.forEach(p => {
+            const diff = p.centsDeviation - avgDev;
+            varSum += diff * diff;
+          });
+          const stdDev = normalizedPts.length > 0 ? Math.sqrt(varSum / normalizedPts.length) : 0;
+          const roundStab = Math.max(0, Math.min(100, Math.round(100 - stdDev * 2.2)));
+
+          const roundPerf: RoundPerformance = {
+            round: r,
+            accuracy: roundAcc,
+            stability: roundStab,
+            avgDeviation: avgDev,
+            timeInSurSec: Math.round(inSurPts.length * 0.05 * 10) / 10,
+            totalSec: singleRoundSec,
+            recordedPoints: normalizedPts,
+            targetBlocks: [...selectedLesson.targetBlocks],
+          };
+
+          setRoundHistory(prev => [...prev, roundPerf]);
+          setRoundToast(`✨ Round ${r}/${totalRounds} Complete (${roundAcc}% Sur)! Keep singing into Round ${r + 1}...`);
+          if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
+          roundTransitionTimeoutRef.current = window.setTimeout(() => {
+            setRoundToast(null);
+          }, 3000);
+          break;
+        }
+      }
+
+      // Check if entire multi-round session has completed
+      if (elapsedSec >= totalSessionSec) {
+        handleFullSessionCompletion();
         return;
       }
 
@@ -389,20 +478,48 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [stage, exerciseStartTimeMs, targetBlocks, totalRoundSec, currentPitch]);
+  }, [stage, exerciseStartTimeMs, continuousTargetBlocks, totalSessionSec, singleRoundSec, totalRounds]);
 
-  // Launch a round seamlessly
-  const launchRound = (roundNum: number) => {
-    setCurrentRound(roundNum);
-    recordedPointsRef.current = [];
-    setActiveBlock(null);
-    setIsHitActive(false);
-    setStage('practicing');
-    setElapsedExerciseSec(0);
-    setShowIdleReview(false);
+  // Helper to compile round performance history from recorded session points
+  const compileRoundsFromPoints = (points: RecordedPitchPoint[], numRounds: number, elapsed: number): RoundPerformance[] => {
+    const history: RoundPerformance[] = [];
+    for (let r = 1; r <= numRounds; r++) {
+      const rStart = (r - 1) * singleRoundSec;
+      const rEnd = Math.min(elapsed, r * singleRoundSec);
+      const rPts = points.filter(p => p.timeSec >= rStart && p.timeSec <= rEnd);
+      const normalizedPts = rPts.map(p => ({
+        ...p,
+        timeSec: Math.max(0, p.timeSec - rStart),
+      }));
+      const inSurPts = normalizedPts.filter(p => p.isInSur);
+      const roundAcc = normalizedPts.length > 0
+        ? Math.min(100, Math.round((inSurPts.length / normalizedPts.length) * 100))
+        : 0;
 
-    const startT = performance.now();
-    setExerciseStartTimeMs(startT);
+      let sumDev = 0;
+      normalizedPts.forEach(p => sumDev += p.centsDeviation);
+      const avgDev = normalizedPts.length > 0 ? Math.round((sumDev / normalizedPts.length) * 10) / 10 : 0;
+
+      let varSum = 0;
+      normalizedPts.forEach(p => {
+        const diff = p.centsDeviation - avgDev;
+        varSum += diff * diff;
+      });
+      const stdDev = normalizedPts.length > 0 ? Math.sqrt(varSum / normalizedPts.length) : 0;
+      const roundStab = Math.max(0, Math.min(100, Math.round(100 - stdDev * 2.2)));
+
+      history.push({
+        round: r,
+        accuracy: roundAcc,
+        stability: roundStab,
+        avgDeviation: avgDev,
+        timeInSurSec: Math.round(inSurPts.length * 0.05 * 10) / 10,
+        totalSec: singleRoundSec,
+        recordedPoints: normalizedPts,
+        targetBlocks: [...selectedLesson.targetBlocks],
+      });
+    }
+    return history;
   };
 
   // Start entire multi-round practice session (does not auto-trigger Tanpura)
@@ -414,62 +531,27 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     setNoteBreakdowns([]);
     setShowIdleReview(false);
     allSessionPointsRef.current = [];
-    launchRound(1);
+    lastCompletedRoundRef.current = 0;
+    setCurrentRound(1);
+    setActiveBlock(null);
+    setIsHitActive(false);
+    setElapsedExerciseSec(0);
+    setStage('practicing');
+
+    const startT = performance.now();
+    setExerciseStartTimeMs(startT);
   };
 
-  // Handle completion of a single round
-  const handleRoundComplete = () => {
-    setExerciseStartTimeMs(null);
+  // Handle completion of the full multi-round practice session
+  const handleFullSessionCompletion = () => {
     setIsHitActive(false);
     setActiveBlock(null);
+    setRoundToast(null);
+    setElapsedExerciseSec(totalSessionSec);
 
-    const points = [...recordedPointsRef.current];
-    const inSurPts = points.filter(p => p.isInSur);
-    const roundAcc = points.length > 0 ? Math.min(100, Math.round((inSurPts.length / points.length) * 100)) : 0;
-
-    let sumDev = 0;
-    points.forEach(p => sumDev += p.centsDeviation);
-    const avgDev = points.length > 0 ? Math.round((sumDev / points.length) * 10) / 10 : 0;
-
-    let varSum = 0;
-    points.forEach(p => {
-      const diff = p.centsDeviation - avgDev;
-      varSum += diff * diff;
-    });
-    const stdDev = points.length > 0 ? Math.sqrt(varSum / points.length) : 0;
-    const roundStab = Math.max(0, Math.min(100, Math.round(100 - stdDev * 2.2)));
-
-    const roundPerf: RoundPerformance = {
-      round: currentRound,
-      accuracy: roundAcc,
-      stability: roundStab,
-      avgDeviation: avgDev,
-      timeInSurSec: Math.round((inSurPts.length * 0.05) * 10) / 10,
-      totalSec: Math.max(totalRoundSec, Math.round((points.length * 0.05) * 10) / 10),
-      recordedPoints: points,
-      targetBlocks: [...targetBlocks],
-    };
-
-    const nextHistory = [...roundHistory, roundPerf];
-    setRoundHistory(nextHistory);
-    setReviewRoundIndex(nextHistory.length - 1);
-    setReviewElapsedSec(0);
-
-    // If more rounds remain, trigger next round seamlessly
-    if (currentRound < totalRounds) {
-      const nextR = currentRound + 1;
-      setRoundToast(`✨ Round ${currentRound} Complete (${roundAcc}% Sur)! Starting Round ${nextR} of ${totalRounds}...`);
-
-      if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
-      roundTransitionTimeoutRef.current = window.setTimeout(() => {
-        setRoundToast(null);
-        launchRound(nextR);
-      }, 750);
-    } else {
-      // Completed all rounds! Compile comprehensive Riyaz Report
-      setRoundToast(null);
-      finishFullSessionAnalysis(nextHistory);
-    }
+    const completed = compileRoundsFromPoints(allSessionPointsRef.current, totalRounds, totalSessionSec);
+    setRoundHistory(completed);
+    finishFullSessionAnalysis(completed);
   };
 
   // Compile final analysis report & save persistent mastery progress
@@ -509,7 +591,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
       avgDev > 8 ? 'sharp' : avgDev < -8 ? 'flat' : 'centered';
 
     // Note by note breakdown
-    const userBlocks = targetBlocks.filter(b => b.type === 'user');
+    const userBlocks = selectedLesson.targetBlocks.filter(b => b.type === 'user');
     const breakdowns: NotePerformanceSummary[] = userBlocks.map(block => {
       const blockPts = allPts.filter(p => p.swaraId === block.swaraId);
       if (blockPts.length === 0) {
@@ -608,7 +690,14 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
   // Immediate Stop & Jump directly to Review Mode
   const handleStopAndReview = () => {
-    handleRoundComplete();
+    if (stage !== 'practicing' || exerciseStartTimeMs === null) return;
+    const now = performance.now();
+    const elapsed = (now - exerciseStartTimeMs) / 1000;
+    const numRounds = Math.min(totalRounds, Math.max(1, Math.ceil(elapsed / singleRoundSec)));
+
+    const completed = compileRoundsFromPoints(allSessionPointsRef.current, numRounds, elapsed);
+    setRoundHistory(completed);
+    finishFullSessionAnalysis(completed);
   };
 
   // Note jump handlers
@@ -1017,12 +1106,14 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
           <div className="highway-arena-wrapper">
             <NoteHighwayCanvas
               currentPitch={currentPitch}
-              targetBlocks={targetBlocks}
+              targetBlocks={continuousTargetBlocks}
               exerciseStartTimeMs={exerciseStartTimeMs}
               stage={stage}
               isHitActive={isHitActive}
               audioLevel={userMicLevel}
-              totalRoundSec={totalRoundSec}
+              totalRoundSec={totalSessionSec}
+              singleRoundSec={singleRoundSec}
+              totalRounds={totalRounds}
               isUserTurn={stage === 'practicing'}
             />
 
@@ -1058,14 +1149,14 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
               <div className="scrubber-bar-container">
                 <div
                   className="scrubber-fill-bar"
-                  style={{ width: `${Math.min(100, (elapsedExerciseSec / totalRoundSec) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (elapsedExerciseSec / totalSessionSec) * 100)}%` }}
                 />
                 <div
                   className="scrubber-knob"
-                  style={{ left: `${Math.min(100, (elapsedExerciseSec / totalRoundSec) * 100)}%` }}
+                  style={{ left: `${Math.min(100, (elapsedExerciseSec / totalSessionSec) * 100)}%` }}
                 />
               </div>
-              <span className="scrubber-time total">{formatTime(totalRoundSec)}</span>
+              <span className="scrubber-time total">{formatTime(totalSessionSec)}</span>
               <span className="scrubber-round-badge">Round {currentRound}/{totalRounds}</span>
             </div>
           </div>
