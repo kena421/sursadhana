@@ -574,6 +574,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
               isHitActive={isHitActive}
               audioLevel={currentActiveLevel}
               totalRoundSec={totalRoundSec}
+              isUserTurn={activeBlock?.type === 'user'}
             />
 
             {/* Non-blocking Floating Toast for Seamless Round Transitions */}

@@ -30,6 +30,7 @@ interface NoteHighwayCanvasProps {
   activeRemainingSec?: number;
   audioLevel?: number; // 0 to 1 live volume level of singing voice
   totalRoundSec?: number;
+  isUserTurn?: boolean; // only plot user mic when it is user's turn (avoids speaker echo)
 }
 
 export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
@@ -39,15 +40,16 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
   stage,
   isHitActive,
   audioLevel = 0,
+  isUserTurn = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const userPitchTrailRef = useRef<{ timeMs: number; semitonePos: number; isInSur: boolean }[]>([]);
   const animRef = useRef<number | null>(null);
 
-  // Keep user pitch trail updated
+  // Keep user pitch trail updated ONLY during user's turn to prevent speaker feedback
   useEffect(() => {
-    if (stage === 'practicing' && currentPitch) {
+    if (stage === 'practicing' && isUserTurn && currentPitch) {
       const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
       const basePos = swaraIndex !== -1 ? swaraIndex : 0;
       const pos = basePos + currentPitch.centsDeviation / 100;
@@ -61,10 +63,13 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       // Keep last 8 seconds of pitch history
       const cutoff = performance.now() - 8000;
       userPitchTrailRef.current = userPitchTrailRef.current.filter(p => p.timeMs > cutoff);
-    } else if (stage === 'idle') {
-      userPitchTrailRef.current = [];
+    } else if (stage === 'idle' || !isUserTurn) {
+      // Clear trail when transitioning to prevent old or echo points
+      if (!isUserTurn) {
+        userPitchTrailRef.current = [];
+      }
     }
-  }, [currentPitch, stage]);
+  }, [currentPitch, stage, isUserTurn]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -320,7 +325,7 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       }
 
       // 6. Draw User's Continuous Vocal Pitch Trail (Curve on Left of Playhead, as seen in screenshot)
-      if (stage !== 'idle' && userPitchTrailRef.current.length > 1) {
+      if (stage !== 'idle' && isUserTurn && userPitchTrailRef.current.length > 1) {
         ctx.save();
         ctx.beginPath();
 
@@ -448,8 +453,8 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         }
       }
 
-      // 9b. Bright Glowing Cursor Dot on Playhead (matching screenshot)
-      if (stage !== 'idle' && currentPitch) {
+      // 9b. Bright Glowing Cursor Dot on Playhead (matching screenshot - only during user turn)
+      if (stage !== 'idle' && isUserTurn && currentPitch) {
         const swaraIndex = SWARAS.findIndex(s => s.id === currentPitch.swara.id);
         const basePos = swaraIndex !== -1 ? swaraIndex : 0;
         const currentPos = basePos + currentPitch.centsDeviation / 100;
