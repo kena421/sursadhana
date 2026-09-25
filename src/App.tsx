@@ -244,6 +244,8 @@ export const App: React.FC = () => {
               rootPitch={rootPitch}
               isMicActive={isMicActive}
               onStartMic={handleToggleMic}
+              isTanpuraActive={isTanpuraActive}
+              onToggleTanpura={handleToggleTanpura}
             />
           </div>
         )}

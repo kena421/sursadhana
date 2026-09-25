@@ -281,14 +281,25 @@ export interface LessonNote {
   label: string;
 }
 
+export interface VocalTechniqueTip {
+  focusArea: string;
+  breathPlacement: string;
+  secretTip: string;
+  targetRaga?: string;
+}
+
 export interface PracticeLesson {
   id: string;
+  stageNumber: number;
+  stageTitle: string;
+  stageHindi: string;
   title: string;
   hindiTitle: string;
   category: 'single_swara' | 'intervals' | 'combinations' | 'vikrit';
   level: 'Beginner' | 'Intermediate' | 'Advanced';
   description: string;
   instructions: string;
+  technique: VocalTechniqueTip;
   targetNotes: LessonNote[];
 }
 
@@ -313,97 +324,562 @@ export interface PerformanceAnalysis {
 }
 
 export const PRACTICE_LESSONS: PracticeLesson[] = [
+  // =========================================================================
+  // STAGE 1: FOUNDATION & BREATH STABILITY (चरण १: स्वर नींव व श्वास स्थिरता)
+  // =========================================================================
   {
     id: 'lesson_sa',
-    title: 'Mastering "Sa" (केवल "सा" साधना)',
-    hindiTitle: 'षड्ज (सा) स्थिरता साधना',
+    stageNumber: 1,
+    stageTitle: 'Stage 1: Breath & Root Stability',
+    stageHindi: 'चरण १: स्वर नींव व श्वास स्थिरता',
+    title: 'Long Sa Sadhana (दीर्घ "सा" - स्वर स्थिरता व खरज)',
+    hindiTitle: 'षड्ज (सा) स्थिरता एवं दीर्घ साधना',
     category: 'single_swara',
     level: 'Beginner',
-    description: 'The foundation of all Indian Classical music. Listen to Sa, then sing and hold your pure Sa.',
-    instructions: '1. Listen to the app sing Sa. 2. When prompted, take a deep breath and sing "Saaa" steadily for 4 seconds.',
+    description: 'The supreme foundation of every singer (स्वर साधना की नींव). Holding pure Sa with diaphragmatic support creates vocal weight, pitch gravity, and timeless resonance.',
+    instructions: 'Take a deep belly breath as the bar approaches. Hold pure "सा" steadily on the center pitch line with relaxed jaw and chest resonance.',
+    technique: {
+      focusArea: 'Chest Resonance & Diaphragmatic Breath (नाभि व छाती की गूंज)',
+      breathPlacement: 'Deep belly breath (नाभि श्वास) — fill ribs outward without raising shoulders.',
+      secretTip: 'Drop your jaw gently as if drinking warm tea. Do not push air from throat; let the sound float on breath.',
+      targetRaga: 'Foundation of all Indian Ragas (सर्व राग मूल)'
+    },
     targetNotes: [
-      { swaraId: 'S', durationSec: 4.5, label: 'सा' }
+      { swaraId: 'S', durationSec: 6.0, label: 'सा' }
     ]
   },
   {
     id: 'lesson_pa',
-    title: 'Mastering "Pa" (केवल "प" साधना - पंचम)',
+    stageNumber: 1,
+    stageTitle: 'Stage 1: Breath & Root Stability',
+    stageHindi: 'चरण १: स्वर नींव व श्वास स्थिरता',
+    title: 'Anchoring Pancham (केवल "प" साधना - संवादी स्तम्भ)',
     hindiTitle: 'पंचम (प) सुर साधना',
     category: 'single_swara',
     level: 'Beginner',
-    description: 'The natural harmonic fifth (3/2 ratio). Perfectly stable achala swara that creates celestial harmony.',
-    instructions: 'Listen to the harmonic frequency of Pa, then align your voice to hit the exact center of Pancham.',
+    description: 'The natural harmonic fifth (3/2 ratio). Perfectly stable achala swara that tunes your hearing and creates harmonious acoustic lock with Tanpura.',
+    instructions: 'Aim directly for the exact center of Pancham. Maintain an even, unwavering vocal tone across the entire note hold.',
+    technique: {
+      focusArea: 'Mask Resonance & Harmonic Alignment (मुख व नासिका संनाद)',
+      breathPlacement: 'Upper abdominal engagement; sustained outward rib expansion.',
+      secretTip: 'Feel the vibration in your teeth and nasal bridge. Align your sound to disappear into the Tanpura Pa string.',
+      targetRaga: 'Universal Harmonic Fifth'
+    },
     targetNotes: [
-      { swaraId: 'P', durationSec: 4.5, label: 'प' }
+      { swaraId: 'P', durationSec: 5.0, label: 'प' }
     ]
   },
   {
+    id: 'lesson_sa_pa_sa',
+    stageNumber: 1,
+    stageTitle: 'Stage 1: Breath & Root Stability',
+    stageHindi: 'चरण १: स्वर नींव व श्वास स्थिरता',
+    title: 'The Dual Pillars: Sa - Pa - Sa (षड्ज-पंचम संतुलन)',
+    hindiTitle: 'षड्ज-पंचम अचल स्वर साधना',
+    category: 'single_swara',
+    level: 'Beginner',
+    description: 'Alternating between the two unmovable Achala pillars (Shadja and Pancham). Establishes the acoustic axis of classical intonation.',
+    instructions: 'Sing Sa from chest, transition smoothly to Pa with mask resonance, then return gracefully to Sa on a single breath.',
+    technique: {
+      focusArea: 'Vocal Register Balancing (मंद्र व मध्य संतुलन)',
+      breathPlacement: 'Continuous smooth breath stream without gasping between notes.',
+      secretTip: 'Do not squeeze your throat when shifting to Pa; tilt your chin slightly downward to keep vocal cords relaxed.',
+      targetRaga: 'Achala Swara Foundation'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 3.0, label: 'सा' },
+      { swaraId: 'P', durationSec: 3.5, label: 'प' },
+      { swaraId: 'S', durationSec: 3.0, label: 'सा' }
+    ]
+  },
+  {
+    id: 'lesson_sa_taar_sa',
+    stageNumber: 1,
+    stageTitle: 'Stage 1: Breath & Root Stability',
+    stageHindi: 'चरण १: स्वर नींव व श्वास स्थिरता',
+    title: 'Octave Expansion: Madhya Sa to Taar Sa (मध्य से तार सा)',
+    hindiTitle: 'तार सप्तक सा साधना',
+    category: 'single_swara',
+    level: 'Beginner',
+    description: 'Training vocal cords to bridge the full 2:1 frequency octave from Middle Sa to Upper Taar Sa cleanly without straining the larynx.',
+    instructions: 'Sing middle Sa with chest warmth, then elevate your voice to ring pure Taar Sa with head resonance, returning to base Sa.',
+    technique: {
+      focusArea: 'Head Voice & Pharyngeal Resonance (शिरो भाग गूंज)',
+      breathPlacement: 'Firm lower abdominal anchor; let the air speed increase lightly.',
+      secretTip: 'Never yell or force high Taar Sa. Imagine placing the note on the crown of your head with a smile.',
+      targetRaga: 'Full Range Expansion'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 3.0, label: 'सा' },
+      { swaraId: 'S_taar', durationSec: 3.5, label: 'सां' },
+      { swaraId: 'S', durationSec: 3.0, label: 'सा' }
+    ]
+  },
+
+  // =========================================================================
+  // STAGE 2: SHUDDHA SWARAS & BILAWAL ARCHITECTURE (चरण २: शुद्ध स्वर रचना)
+  // =========================================================================
+  {
     id: 'lesson_sa_re',
-    title: 'Two-Step Step: Sa to Re (सा और रे)',
+    stageNumber: 2,
+    stageTitle: 'Stage 2: Shuddha Swara Foundation',
+    stageHindi: 'चरण २: शुद्ध स्वर रचना व पूर्वांग',
+    title: 'First Step: Sa to Re (सा और शुद्ध रे का संवाद)',
     hindiTitle: 'सा से रे का सफर',
     category: 'intervals',
     level: 'Beginner',
-    description: 'Learn the smooth transition from base Sa to Shuddha Re (9/8 ratio).',
-    instructions: 'App will sing Sa then Re. In your turn, sing Sa for 2.5s and smoothly transition to Re for 2.5s.',
+    description: 'Mastering the 9/8 Major Second interval. The fundamental building block of Indian scale ascent.',
+    instructions: 'Sing Sa for 2.5s and step cleanly up to Shuddha Re for 2.5s without dragging or sliding sharp.',
+    technique: {
+      focusArea: 'Vocal Micro-Stepping (स्वर क्रम सटीकता)',
+      breathPlacement: 'Even airflow; do not push extra air when climbing to Re.',
+      secretTip: 'Shuddha Re is 204 cents above Sa. Keep your tongue relaxed and flat against bottom teeth.',
+      targetRaga: 'Bilawal, Kalyan, Kafi'
+    },
     targetNotes: [
       { swaraId: 'S', durationSec: 2.5, label: 'सा' },
-      { swaraId: 'R', durationSec: 2.5, label: 'रे' }
+      { swaraId: 'R', durationSec: 2.5, label: 'रे' },
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
     ]
   },
   {
     id: 'lesson_sa_re_ga',
-    title: 'Triad Steps: Sa - Re - Ga (सा-रे-ग त्रयी)',
-    hindiTitle: 'सा-रे-ग का आरोह',
+    stageNumber: 2,
+    stageTitle: 'Stage 2: Shuddha Swara Foundation',
+    stageHindi: 'चरण २: शुद्ध स्वर रचना व पूर्वांग',
+    title: 'Classical Triad: Sa - Re - Ga (सा-रे-ग त्रयी आरोह)',
+    hindiTitle: 'सा-रे-ग त्रयी साधना',
     category: 'combinations',
     level: 'Beginner',
-    description: 'Master the opening three notes of Bilawal and Kalyan that define classical vocal ascent.',
-    instructions: 'Listen to the 3 notes, then sing Sa, Re, and Ga consecutively without rushing.',
+    description: 'The signature 3-note ascent that opens Bilawal, Kalyan, and Khamaj. Establishes true Major Third (5/4 ratio) intonation.',
+    instructions: 'Sing Sa, Re, and Ga consecutively. Give full warmth to Gandhar (ग) for 3 seconds before resolving to Sa.',
+    technique: {
+      focusArea: 'Major Third Purity (शुद्ध गान्धार शुद्धता)',
+      breathPlacement: 'Supported continuous breath column across all 3 notes.',
+      secretTip: 'In Just Intonation, Shuddha Ga is at 386 cents (slightly sweeter and lower than Western piano). Keep it pure.',
+      targetRaga: 'Bilawal & Kalyan Thaat'
+    },
     targetNotes: [
       { swaraId: 'S', durationSec: 2.0, label: 'सा' },
       { swaraId: 'R', durationSec: 2.0, label: 'रे' },
-      { swaraId: 'G', durationSec: 2.5, label: 'ग' }
+      { swaraId: 'G', durationSec: 3.0, label: 'ग' },
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
     ]
   },
   {
+    id: 'lesson_poorvang',
+    stageNumber: 2,
+    stageTitle: 'Stage 2: Shuddha Swara Foundation',
+    stageHindi: 'चरण २: शुद्ध स्वर रचना व पूर्वांग',
+    title: 'The Bedrock Poorvang: Sa to Pa (सा रे ग म प - पूर्वांग)',
+    hindiTitle: 'पूर्वांग स्वर साधना (सा से प)',
+    category: 'combinations',
+    level: 'Intermediate',
+    description: 'The first five notes (Poorvang) that define 80% of North Indian classical compositions. Balances Shuddha Ma with Pa.',
+    instructions: 'Ascend steadily through Sa, Re, Ga, Ma, and settle into Pancham. Keep note durations steady and transitions smooth.',
+    technique: {
+      focusArea: 'Shuddha Madhyam Intonation (मध्यम शुद्धता व शांति)',
+      breathPlacement: 'Take a full breath before the run; sustain through Pa.',
+      secretTip: 'Shuddha Madhyam (498 cents) must not lean toward Teevra Ma. Feel its resting, serene calm before reaching Pa.',
+      targetRaga: 'Bilawal Poorvang'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
+      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
+      { swaraId: 'G', durationSec: 1.8, label: 'ग' },
+      { swaraId: 'm', durationSec: 2.0, label: 'म' },
+      { swaraId: 'P', durationSec: 2.5, label: 'प' }
+    ]
+  },
+  {
+    id: 'lesson_full_saptak',
+    stageNumber: 2,
+    stageTitle: 'Stage 2: Shuddha Swara Foundation',
+    stageHindi: 'चरण २: शुद्ध स्वर रचना व पूर्वांग',
+    title: 'Complete Bilawal Saptak: Ascent & Descent (सम्पूर्ण सप्तक)',
+    hindiTitle: 'सातों शुद्ध स्वर आरोह-अवरोह',
+    category: 'combinations',
+    level: 'Intermediate',
+    description: 'Singing all 7 natural notes (Shuddha Swaras) up to Taar Sa and descending cleanly back to Madhya Sa.',
+    instructions: 'Sing each note with equal duration. Maintain steady rhythm and take a silent breath at Taar Sa before descending.',
+    technique: {
+      focusArea: 'Breath Economy & Octave Architecture (श्वास प्रबंधन)',
+      breathPlacement: 'Pace your air so 50% remains when reaching Taar Sa.',
+      secretTip: 'Dhaivat and Nishad must stay bright. Do not drop pitch on the descent from Taar Sa.',
+      targetRaga: 'Bilawal Thaat (Natural Major Scale)'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.4, label: 'सा' },
+      { swaraId: 'R', durationSec: 1.4, label: 'रे' },
+      { swaraId: 'G', durationSec: 1.4, label: 'ग' },
+      { swaraId: 'm', durationSec: 1.4, label: 'म' },
+      { swaraId: 'P', durationSec: 1.4, label: 'प' },
+      { swaraId: 'D', durationSec: 1.4, label: 'ध' },
+      { swaraId: 'N', durationSec: 1.4, label: 'नि' },
+      { swaraId: 'S_taar', durationSec: 2.2, label: 'सां' },
+      { swaraId: 'N', durationSec: 1.4, label: 'नि' },
+      { swaraId: 'D', durationSec: 1.4, label: 'ध' },
+      { swaraId: 'P', durationSec: 1.4, label: 'प' },
+      { swaraId: 'm', durationSec: 1.4, label: 'म' },
+      { swaraId: 'G', durationSec: 1.4, label: 'ग' },
+      { swaraId: 'R', durationSec: 1.4, label: 'रे' },
+      { swaraId: 'S', durationSec: 2.2, label: 'सा' }
+    ]
+  },
+
+  // =========================================================================
+  // STAGE 3: VOCAL INTERVALS & CHHALANG (चरण ३: स्वर अन्तराल व छलांग)
+  // =========================================================================
+  {
     id: 'lesson_sa_pa_leap',
-    title: 'The Great Leap: Sa to Pa (सा-प की छलांग)',
-    hindiTitle: 'षड्ज-पंचम संवाद',
+    stageNumber: 3,
+    stageTitle: 'Stage 3: Melodic Intervals & Leaps',
+    stageHindi: 'चरण ३: स्वर अन्तराल व छलांग साधना',
+    title: 'The Great Fifth Leap: Sa to Pa (षड्ज-पंचम छलांग)',
+    hindiTitle: 'षड्ज-पंचम छलांग साधना',
     category: 'intervals',
     level: 'Intermediate',
-    description: 'Train your vocal muscle memory to leap directly across the fifth interval without sliding.',
-    instructions: 'App sings Sa then leaps directly to Pa and returns to Sa. Follow the demonstration.',
+    description: 'Calibrate vocal muscle memory to leap directly across the fifth interval without sliding through intermediate notes.',
+    instructions: 'Sing Sa firmly, leap straight to Pa on target, return to Sa, and leap back to Pa cleanly.',
+    technique: {
+      focusArea: 'Vocal Cord Tension Calibration (स्वर छलांग नियंत्रण)',
+      breathPlacement: 'Snappy abdominal support on each leap without coughing.',
+      secretTip: 'Hear Pancham inside your mind before singing it. Jump directly onto the pitch bullseye without meend.',
+      targetRaga: 'Universal Classical Precision'
+    },
     targetNotes: [
       { swaraId: 'S', durationSec: 2.0, label: 'सा' },
       { swaraId: 'P', durationSec: 2.5, label: 'प' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'P', durationSec: 2.5, label: 'प' }
     ]
   },
   {
+    id: 'lesson_sa_ma_leap',
+    stageNumber: 3,
+    stageTitle: 'Stage 3: Melodic Intervals & Leaps',
+    stageHindi: 'चरण ३: स्वर अन्तराल व छलांग साधना',
+    title: 'The Fourth Leap: Sa to Ma (षड्ज-मध्यम छलांग)',
+    hindiTitle: 'षड्ज-मध्यम अन्तराल',
+    category: 'intervals',
+    level: 'Intermediate',
+    description: 'The 4/3 perfect fourth leap. Essential for ragas that treat Shuddha Madhyam as Vadi (Malkauns, Bageshree, Megh).',
+    instructions: 'Sing base Sa, jump directly to Shuddha Ma without touching Re or Ga, and hold Ma with deep tranquility.',
+    technique: {
+      focusArea: 'Fourth Interval Muscle Memory (मध्यम स्वर संधान)',
+      breathPlacement: 'Gentle, steady breath stream; do not blurt air on Ma.',
+      secretTip: 'Shuddha Ma has an inward, meditating quality. Land on its center with soft vocal cords.',
+      targetRaga: 'Malkauns, Bageshri, Megh'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'm', durationSec: 2.5, label: 'म' },
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
+      { swaraId: 'm', durationSec: 2.5, label: 'म' }
+    ]
+  },
+  {
+    id: 'lesson_thirds_sixths',
+    stageNumber: 3,
+    stageTitle: 'Stage 3: Melodic Intervals & Leaps',
+    stageHindi: 'चरण ३: स्वर अन्तराल व छलांग साधना',
+    title: 'Harmonic Color: Sa-Ga & Sa-Dha (गान्धार व धैवत अन्तराल)',
+    hindiTitle: 'तीसरे व छठे स्वर की छलांग',
+    category: 'intervals',
+    level: 'Intermediate',
+    description: 'Alternating major third (Ga) and major sixth (Dha) leaps. Develops flexible vocal agility across wide distances.',
+    instructions: 'Sing Sa -> Ga, return to Sa, then leap wide to Shuddha Dhaivat and resolve back to Sa.',
+    technique: {
+      focusArea: 'Wide Interval Pitch Placement (विस्तृत स्वर छलांग)',
+      breathPlacement: 'Lift sound into the palate on Dhaivat while keeping navel engaged.',
+      secretTip: 'Dhaivat should feel bright and uplifting. Keep your soft palate lifted like a gentle yawn.',
+      targetRaga: 'Bhupali, Deshkar, Pahadi'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
+      { swaraId: 'G', durationSec: 2.2, label: 'ग' },
+      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
+      { swaraId: 'D', durationSec: 2.5, label: 'ध' },
+      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
+    ]
+  },
+
+  // =========================================================================
+  // STAGE 4: VIKRIT SWARAS - KOMAL & TEEVRA (चरण ४: कोमल व तीव्र स्वर साधना)
+  // =========================================================================
+  {
     id: 'lesson_komal_re',
-    title: 'Bhairav Mode: Komal Re (कोमल रे॒ साधना)',
+    stageNumber: 4,
+    stageTitle: 'Stage 4: Vikrit Swaras (Komal & Teevra)',
+    stageHindi: 'चरण ४: कोमल व तीव्र स्वर - भाव व रस',
+    title: 'Bhairav Dawn: Komal Re (कोमल रे॒ साधना - प्रातः काल)',
     hindiTitle: 'कोमल ऋषभ (रे॒) साधना',
     category: 'vikrit',
     level: 'Intermediate',
-    description: 'Learn the haunting, delicate 16/15 ratio of Komal Re just above Sa, the soul of Raga Bhairav.',
-    instructions: 'Notice how close Komal Re is to Sa. Do not sing it too high as Shuddha Re.',
+    description: 'Learn the delicate 16/15 ratio of Komal Re (112 cents), resting like a soft whisper just above Sa. The soul of Raga Bhairav.',
+    instructions: 'Notice how close Komal Re is to Sa. Do not sing it too high like Shuddha Re. Keep it subtle and contemplative.',
+    technique: {
+      focusArea: 'Micro-Tonal Sensitivity (श्रुति सूक्ष्मता)',
+      breathPlacement: 'Warm, whispered breath column with deep chest tone on Sa.',
+      secretTip: 'Komal Re is only 1 semitone above Sa. Think of it as a shadow of Sa rather than a separate jump.',
+      targetRaga: 'Raga Bhairav, Ahir Bhairav'
+    },
     targetNotes: [
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'r', durationSec: 3.0, label: 'रे॒' },
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' }
+      { swaraId: 'S', durationSec: 2.2, label: 'सा' },
+      { swaraId: 'r', durationSec: 3.2, label: 'रे॒' },
+      { swaraId: 'S', durationSec: 2.5, label: 'सा' }
+    ]
+  },
+  {
+    id: 'lesson_komal_ga_ni',
+    stageNumber: 4,
+    stageTitle: 'Stage 4: Vikrit Swaras (Komal & Teevra)',
+    stageHindi: 'चरण ४: कोमल व तीव्र स्वर - भाव व रस',
+    title: 'Kafi Emotion: Komal Ga & Komal Ni (कोमल ग॒ व नि॒ - रस साधना)',
+    hindiTitle: 'कोमल गान्धार व निषाद साधना',
+    category: 'vikrit',
+    level: 'Intermediate',
+    description: 'The minor 3rd (Komal Ga) and minor 7th (Komal Ni) create the deeply emotional, romantic aesthetic of Raga Kafi and Pilu.',
+    instructions: 'Sing the ascending scale with Komal Ga and Komal Ni. Feel the poignant emotional coloration of the flat intervals.',
+    technique: {
+      focusArea: 'Komal Swara Emotional Resonance (करुण व शृंगार रस)',
+      breathPlacement: 'Gentle, expressive breath flow with smooth transitions.',
+      secretTip: 'Komal Ga is 316 cents — 70 cents lower than Shuddha Ga. Let your voice embrace its soft, tender slope.',
+      targetRaga: 'Raga Kafi, Bageshree, Pilu'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
+      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
+      { swaraId: 'g', durationSec: 2.5, label: 'ग॒' },
+      { swaraId: 'm', durationSec: 1.8, label: 'म' },
+      { swaraId: 'P', durationSec: 1.8, label: 'प' },
+      { swaraId: 'd', durationSec: 1.8, label: 'ध॒' },
+      { swaraId: 'n', durationSec: 2.2, label: 'नि॒' },
+      { swaraId: 'S_taar', durationSec: 2.5, label: 'सां' }
     ]
   },
   {
     id: 'lesson_teevra_ma',
-    title: 'Yaman Mode: Teevra Ma (तीव्र म॑ साधना)',
+    stageNumber: 4,
+    stageTitle: 'Stage 4: Vikrit Swaras (Komal & Teevra)',
+    stageHindi: 'चरण ४: कोमल व तीव्र स्वर - भाव व रस',
+    title: 'Yaman Radiance: Teevra Ma (तीव्र म॑ - सायंकालीन दीप्ति)',
     hindiTitle: 'तीव्र मध्यम (म॑) साधना',
     category: 'vikrit',
     level: 'Advanced',
-    description: 'The sharp fourth (45/32 ratio) that illuminates evening ragas like Yaman and Marwa.',
-    instructions: 'App demonstrates Sa -> Teevra Ma -> Pa. Sing each note firmly on the target.',
+    description: 'The sharp fourth (45/32 ratio, 590 cents). The mystical, luminous swara that illuminates evening ragas like Yaman, Marwa, and Puriya.',
+    instructions: 'Sing Sa -> Re -> Ga -> Teevra Ma -> Pa. Hit Teevra Ma boldly above Shuddha Ma and resolve into Pancham.',
+    technique: {
+      focusArea: 'Teevra Sharp Intonation (तीव्र मध्यम स्थिरता)',
+      breathPlacement: 'Forward mask projection; steady abdominal lift on Teevra Ma.',
+      secretTip: 'Teevra Ma has a magnetic pull toward Pancham. Sing it proud and bright (590 cents), not shy.',
+      targetRaga: 'Raga Yaman, Kalyan, Marwa'
+    },
     targetNotes: [
-      { swaraId: 'S', durationSec: 2.0, label: 'सा' },
-      { swaraId: 'M', durationSec: 3.0, label: 'म॑' },
-      { swaraId: 'P', durationSec: 2.5, label: 'प' }
+      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
+      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
+      { swaraId: 'G', durationSec: 2.0, label: 'ग' },
+      { swaraId: 'M', durationSec: 2.5, label: 'म॑' },
+      { swaraId: 'P', durationSec: 2.5, label: 'प' },
+      { swaraId: 'M', durationSec: 2.0, label: 'म॑' },
+      { swaraId: 'G', durationSec: 1.8, label: 'ग' },
+      { swaraId: 'S', durationSec: 2.2, label: 'सा' }
+    ]
+  },
+  {
+    id: 'lesson_all_four_komal',
+    stageNumber: 4,
+    stageTitle: 'Stage 4: Vikrit Swaras (Komal & Teevra)',
+    stageHindi: 'चरण ४: कोमल व तीव्र स्वर - भाव व रस',
+    title: 'Bhairavi Mastery: All 4 Komal Swaras (सम्पूर्ण भैरवी - रे॒ ग॒ ध॒ नि॒)',
+    hindiTitle: 'भैरवी थाट सम्पूर्ण साधना',
+    category: 'vikrit',
+    level: 'Advanced',
+    description: 'All movable notes are flattened (Komal Re, Ga, Dha, Ni). The supreme queen of morning and finale ragas in Indian classical tradition.',
+    instructions: 'Traverse the entire octave with all four Komal swaras, anchored purely between unmovable Sa and Pa.',
+    technique: {
+      focusArea: 'Complex Vikrit Scale Integration (चारों कोमल स्वर संतुलन)',
+      breathPlacement: 'Smooth, unbroken air column; maintain equal volume on all notes.',
+      secretTip: 'Think of Komal notes as tender petals opening around the sturdy branches of Sa and Pa.',
+      targetRaga: 'Raga Bhairavi (Queen of Ragas)'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.8, label: 'सा' },
+      { swaraId: 'r', durationSec: 1.8, label: 'रे॒' },
+      { swaraId: 'g', durationSec: 2.0, label: 'ग॒' },
+      { swaraId: 'm', durationSec: 1.8, label: 'म' },
+      { swaraId: 'P', durationSec: 1.8, label: 'प' },
+      { swaraId: 'd', durationSec: 1.8, label: 'ध॒' },
+      { swaraId: 'n', durationSec: 2.0, label: 'नि॒' },
+      { swaraId: 'S_taar', durationSec: 2.5, label: 'सां' }
+    ]
+  },
+
+  // =========================================================================
+  // STAGE 5: AGILITY, PALTE & TAAN PREPARATION (चरण ५: स्वर गति व पलटे)
+  // =========================================================================
+  {
+    id: 'lesson_double_palta',
+    stageNumber: 5,
+    stageTitle: 'Stage 5: Agility, Palte & Velocity',
+    stageHindi: 'चरण ५: स्वर गति, पलटे व तान तैयारी',
+    title: 'Staccato Articulation: Jodi Swar Palta (जोड़ी स्वर - सा-सा रे-रे)',
+    hindiTitle: 'जोड़ी स्वर पलटा (Articulation)',
+    category: 'combinations',
+    level: 'Intermediate',
+    description: 'Singing each note twice consecutively. Builds vocal attack precision, rapid vocal cord reset, and crisp syllabic articulation.',
+    instructions: 'Articulate each pair of notes cleanly using light diaphragmatic pulses. Do not slur or slide the repeated notes.',
+    technique: {
+      focusArea: 'Vocal Cord Attack & Reset (स्वर प्रहार व स्पष्टता)',
+      breathPlacement: 'Subtle diaphragmatic bounce for each syllable.',
+      secretTip: 'Keep your tongue nimble and teeth slightly parted. Re-attack each note from breath, not by clamping throat.',
+      targetRaga: 'Palta Exercise (Alankar 2)'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.0, label: 'सा' },
+      { swaraId: 'S', durationSec: 1.0, label: 'सा' },
+      { swaraId: 'R', durationSec: 1.0, label: 'रे' },
+      { swaraId: 'R', durationSec: 1.0, label: 'रे' },
+      { swaraId: 'G', durationSec: 1.0, label: 'ग' },
+      { swaraId: 'G', durationSec: 1.0, label: 'ग' },
+      { swaraId: 'm', durationSec: 1.0, label: 'म' },
+      { swaraId: 'm', durationSec: 1.0, label: 'म' },
+      { swaraId: 'P', durationSec: 1.0, label: 'प' },
+      { swaraId: 'P', durationSec: 1.0, label: 'प' },
+      { swaraId: 'S_taar', durationSec: 2.0, label: 'सां' }
+    ]
+  },
+  {
+    id: 'lesson_triplet_palta',
+    stageNumber: 5,
+    stageTitle: 'Stage 5: Agility, Palte & Velocity',
+    stageHindi: 'चरण ५: स्वर गति, पलटे व तान तैयारी',
+    title: 'Ascending Triplets: Three-Step Waves (त्रयी तरंग - सा-रे-ग, रे-ग-म)',
+    hindiTitle: 'त्रयी पलटा (Triplets Agility)',
+    category: 'combinations',
+    level: 'Advanced',
+    description: 'Climbing in interlocking groups of 3 swaras. Prepares the vocal chords for medium-tempo classical taans and drut singing.',
+    instructions: 'Sing each 3-note wave fluidly. Accentuate the 3rd note slightly before starting the next cluster.',
+    technique: {
+      focusArea: 'Interlocking Pattern Fluidity (तान तैयारी व वेग)',
+      breathPlacement: 'Continuous spinning breath column that does not stop between waves.',
+      secretTip: 'Sing like a cascading waterfall — legato and connected, but with crystal clear pitch landmarks.',
+      targetRaga: 'Taan Foundation (Alankar 3)'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 0.8, label: 'सा' },
+      { swaraId: 'R', durationSec: 0.8, label: 'रे' },
+      { swaraId: 'G', durationSec: 1.2, label: 'ग' },
+      { swaraId: 'R', durationSec: 0.8, label: 'रे' },
+      { swaraId: 'G', durationSec: 0.8, label: 'ग' },
+      { swaraId: 'm', durationSec: 1.2, label: 'म' },
+      { swaraId: 'G', durationSec: 0.8, label: 'ग' },
+      { swaraId: 'm', durationSec: 0.8, label: 'म' },
+      { swaraId: 'P', durationSec: 1.2, label: 'प' },
+      { swaraId: 'm', durationSec: 0.8, label: 'म' },
+      { swaraId: 'P', durationSec: 0.8, label: 'प' },
+      { swaraId: 'D', durationSec: 1.2, label: 'ध' },
+      { swaraId: 'P', durationSec: 0.8, label: 'प' },
+      { swaraId: 'D', durationSec: 0.8, label: 'ध' },
+      { swaraId: 'N', durationSec: 1.2, label: 'नि' },
+      { swaraId: 'S_taar', durationSec: 2.0, label: 'सां' }
+    ]
+  },
+  {
+    id: 'lesson_skip_palta',
+    stageNumber: 5,
+    stageTitle: 'Stage 5: Agility, Palte & Velocity',
+    stageHindi: 'चरण ५: स्वर गति, पलटे व तान तैयारी',
+    title: 'Alternating Leaps: Skip-Step Palta (स्वर छलांग पलटा - सा-ग, रे-म, ग-प)',
+    hindiTitle: 'स्वर छलांग पलटा (Vocal Acrobatics)',
+    category: 'combinations',
+    level: 'Advanced',
+    description: 'Alternating leaps of thirds. The quintessential test of a singer’s vocal agility and pinpoint accuracy on dynamic moving targets.',
+    instructions: 'Sing each leap pair with agile confidence. Don’t slide; pop each high note cleanly and return down.',
+    technique: {
+      focusArea: 'Acrobatic Pitch Accuracy (चपल स्वर संधान)',
+      breathPlacement: 'Light, buoyant air stream with elastic diaphragm bounce.',
+      secretTip: 'Keep your vocal tract domed like an umbrella. Let the higher note ring effortlessly without neck veins bulging.',
+      targetRaga: 'Chhalang Palta (Alankar 4)'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 0.9, label: 'सा' },
+      { swaraId: 'G', durationSec: 1.1, label: 'ग' },
+      { swaraId: 'R', durationSec: 0.9, label: 'रे' },
+      { swaraId: 'm', durationSec: 1.1, label: 'म' },
+      { swaraId: 'G', durationSec: 0.9, label: 'ग' },
+      { swaraId: 'P', durationSec: 1.1, label: 'प' },
+      { swaraId: 'm', durationSec: 0.9, label: 'म' },
+      { swaraId: 'D', durationSec: 1.1, label: 'ध' },
+      { swaraId: 'P', durationSec: 0.9, label: 'प' },
+      { swaraId: 'N', durationSec: 1.1, label: 'नि' },
+      { swaraId: 'D', durationSec: 0.9, label: 'ध' },
+      { swaraId: 'S_taar', durationSec: 2.0, label: 'सां' }
+    ]
+  },
+
+  // =========================================================================
+  // STAGE 6: RAGA PHRASING & BANDISH ESSENCE (चरण ६: राग अंग व शास्त्रीय गायकी)
+  // =========================================================================
+  {
+    id: 'lesson_raga_yaman',
+    stageNumber: 6,
+    stageTitle: 'Stage 6: Raga Phrasing & Classical Artistry',
+    stageHindi: 'चरण ६: राग अंग, चलन व शास्त्रीय गायकी',
+    title: 'Raga Yaman Signature Chalan (राग यमन अंग - नि रे ग, रे सा)',
+    hindiTitle: 'राग यमन चलन व पकड़',
+    category: 'combinations',
+    level: 'Advanced',
+    description: 'The crowning masterpiece of North Indian evening ragas. Singing authentic classical phrases with Vadi Gandhar and Teevra Ma.',
+    instructions: 'Sing with reverence and peaceful devotion. Linger on Gandhar (ग) and Shadja (सा) with pure intonation.',
+    technique: {
+      focusArea: 'Nyasa & Raga Mood Creation (न्याय स्वर व भाव)',
+      breathPlacement: 'Slow, expansive breath matching the dignity of nightfall.',
+      secretTip: 'In Yaman, Sa is often omitted in the beginning (नि रे ग). Let Gandhar bloom with sweet, gentle warmth.',
+      targetRaga: 'Raga Yaman (Evening Peace)'
+    },
+    targetNotes: [
+      { swaraId: 'N', durationSec: 1.8, label: 'नि' },
+      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
+      { swaraId: 'G', durationSec: 2.5, label: 'ग' },
+      { swaraId: 'R', durationSec: 1.8, label: 'रे' },
+      { swaraId: 'S', durationSec: 2.5, label: 'सा' },
+      { swaraId: 'M', durationSec: 1.8, label: 'म॑' },
+      { swaraId: 'D', durationSec: 1.8, label: 'ध' },
+      { swaraId: 'N', durationSec: 2.0, label: 'नि' },
+      { swaraId: 'S_taar', durationSec: 2.8, label: 'सां' }
+    ]
+  },
+  {
+    id: 'lesson_raga_bhupali',
+    stageNumber: 6,
+    stageTitle: 'Stage 6: Raga Phrasing & Classical Artistry',
+    stageHindi: 'चरण ६: राग अंग, चलन व शास्त्रीय गायकी',
+    title: 'Raga Bhupali Pentatonic Purity (राग भूपाली - सा रे ग प ध सां)',
+    hindiTitle: 'राग भूपाली औडव साधना',
+    category: 'combinations',
+    level: 'Advanced',
+    description: 'Omitting Ma and Ni (Audav-Audav 5-note scale). One of the most peaceful, ancient, and joyful melodies in world music.',
+    instructions: 'Sing each of the 5 notes with deep contentment. Savor the wide intervals between Ga -> Pa and Dha -> Taar Sa.',
+    technique: {
+      focusArea: 'Audav Pentatonic Expansiveness (औडव शांति व रस)',
+      breathPlacement: 'Calm, steady breath like deep ocean swells.',
+      secretTip: 'Without Ma and Ni, each note stands bold and tall. Keep Gandhar and Dhaivat ringing like silver bells.',
+      targetRaga: 'Raga Bhupali (Joy & Devotion)'
+    },
+    targetNotes: [
+      { swaraId: 'S', durationSec: 1.6, label: 'सा' },
+      { swaraId: 'R', durationSec: 1.6, label: 'रे' },
+      { swaraId: 'G', durationSec: 2.2, label: 'ग' },
+      { swaraId: 'P', durationSec: 1.8, label: 'प' },
+      { swaraId: 'D', durationSec: 1.8, label: 'ध' },
+      { swaraId: 'S_taar', durationSec: 2.5, label: 'सां' },
+      { swaraId: 'S_taar', durationSec: 1.6, label: 'सां' },
+      { swaraId: 'D', durationSec: 1.6, label: 'ध' },
+      { swaraId: 'P', durationSec: 2.0, label: 'प' },
+      { swaraId: 'G', durationSec: 1.8, label: 'ग' },
+      { swaraId: 'R', durationSec: 1.6, label: 'रे' },
+      { swaraId: 'S', durationSec: 2.8, label: 'सा' }
     ]
   }
 ];

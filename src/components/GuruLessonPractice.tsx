@@ -1,10 +1,28 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { RotateCcw, Headphones, Mic, BarChart3, Sparkles, ChevronRight, Volume2, Award, UserCheck } from 'lucide-react';
+import {
+  RotateCcw,
+  Mic,
+  BarChart3,
+  Sparkles,
+  ChevronRight,
+  Award,
+  UserCheck,
+  Star,
+  BookOpen,
+  ArrowRight,
+  Flame,
+  Zap,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PRACTICE_LESSONS } from '../types/music';
-import type { PracticeLesson, DetectedPitch, RootPitchConfig, PerformanceAnalysis, RecordedPitchPoint, LessonNote } from '../types/music';
-import { guruVocalService } from '../services/guruVocalService';
-import type { VoiceTimbre } from '../services/guruVocalService';
+import type {
+  PracticeLesson,
+  DetectedPitch,
+  RootPitchConfig,
+  PerformanceAnalysis,
+  RecordedPitchPoint,
+  LessonNote,
+} from '../types/music';
 import { NoteHighwayCanvas } from './NoteHighwayCanvas';
 import type { HighwayTargetBlock } from './NoteHighwayCanvas';
 
@@ -13,6 +31,8 @@ interface GuruLessonPracticeProps {
   rootPitch: RootPitchConfig;
   isMicActive: boolean;
   onStartMic: () => void;
+  isTanpuraActive?: boolean;
+  onToggleTanpura?: () => void;
 }
 
 type PracticeStage = 'idle' | 'practicing' | 'analysis';
@@ -35,26 +55,61 @@ interface NotePerformanceSummary {
   trend: 'centered' | 'flat' | 'sharp';
 }
 
+interface LessonScoreRecord {
+  bestAccuracy: number;
+  bestStability: number;
+  roundsCount: number;
+  lastPracticedDate: string;
+}
+
+interface SingerProfile {
+  scores: Record<string, LessonScoreRecord>;
+  totalRoundsOverall: number;
+  totalSingingSec: number;
+}
+
+const STORAGE_KEY = 'sur_singer_mastery_profile_v2';
+
+const loadSavedProfile = (): SingerProfile => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.error('Failed to load singer profile:', e);
+  }
+  return {
+    scores: {},
+    totalRoundsOverall: 0,
+    totalSingingSec: 0,
+  };
+};
+
 export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
   currentPitch,
   rootPitch,
   isMicActive,
   onStartMic,
+  isTanpuraActive = false,
+  onToggleTanpura,
 }) => {
   const [selectedLesson, setSelectedLesson] = useState<PracticeLesson>(PRACTICE_LESSONS[0]);
   const [stage, setStage] = useState<PracticeStage>('idle');
-  const [practiceMode, setPracticeMode] = useState<'listen_sing' | 'direct_sing'>('listen_sing');
-  const [customSaDuration, setCustomSaDuration] = useState<number>(4.0);
+  const [customSaDuration, setCustomSaDuration] = useState<number>(6.0);
 
-  // Padhanisa 5-Round Practice Cycle
+  // Singer Curriculum & Profile
+  const [singerProfile, setSingerProfile] = useState<SingerProfile>(loadSavedProfile);
+  const [stageFilter, setStageFilter] = useState<number | 'all'>('all');
+
+  // Padhanisa Multi-Round Practice Cycle
   const [totalRounds, setTotalRounds] = useState<number>(5);
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [roundHistory, setRoundHistory] = useState<RoundPerformance[]>([]);
   const [roundToast, setRoundToast] = useState<string | null>(null);
-  const [voiceTimbre, setVoiceTimbre] = useState<VoiceTimbre>('male_vocal');
+  const [autoTanpura] = useState<boolean>(true);
 
-  // Real-time audio levels
-  const [guruAudioLevel, setGuruAudioLevel] = useState<number>(0);
+  // User microphone level
   const [userMicLevel, setUserMicLevel] = useState<number>(0);
 
   // Highway timing and state
@@ -72,35 +127,105 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
   const allSessionPointsRef = useRef<RecordedPitchPoint[]>([]);
   const roundTransitionTimeoutRef = useRef<number | null>(null);
 
-  // Subscribe to Guru voice audio level & note events
+  // Clean up round transitions
   useEffect(() => {
-    const unsubNote = guruVocalService.subscribeNote((idx) => {
-      // During assisted phase, if Guru is demonstrating, mark as active
-      if (activeBlock?.type === 'assisted') {
-        setIsHitActive(idx !== -1);
-      }
-    });
-    const unsubLevel = guruVocalService.subscribeAudioLevel((lvl) => {
-      setGuruAudioLevel(lvl);
-    });
     return () => {
-      unsubNote();
-      unsubLevel();
-      guruVocalService.stop();
       if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
     };
-  }, [activeBlock]);
+  }, []);
 
-  // Monitor microphone volume level during user turn
+  // Save profile helper
+  const saveProfileUpdate = (updater: (prev: SingerProfile) => SingerProfile) => {
+    setSingerProfile(prev => {
+      const next = updater(prev);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save singer profile:', e);
+      }
+      return next;
+    });
+  };
+
+  // Calculate overall singer mastery statistics
+  const masteryStats = useMemo(() => {
+    const scores = singerProfile.scores;
+    const totalLessons = PRACTICE_LESSONS.length;
+    let masteredCount = 0;
+    let attemptedCount = 0;
+
+    PRACTICE_LESSONS.forEach(l => {
+      const sc = scores[l.id];
+      if (sc) {
+        attemptedCount++;
+        if (sc.bestAccuracy >= 80) masteredCount++;
+      }
+    });
+
+    const masteryPercent = Math.round((masteredCount / totalLessons) * 100);
+
+    // Dynamic Singer Rank
+    let rankTitle = '🎵 Shishya (आरंभिक शिष्य / Apprentice Vocalist)';
+    let rankBadge = 'Shishya';
+    let rankColor = '#FBBF24';
+    let nextMilestone = 'Master 4 lessons to become a Sadhak';
+
+    if (masteredCount >= 18) {
+      rankTitle = '🏆 Sur-Samrat (सुर-सम्राट / Virtuoso Classical Singer)';
+      rankBadge = 'Virtuoso';
+      rankColor = '#F59E0B';
+      nextMilestone = 'Mastered full curriculum! Maintain daily riyaz.';
+    } else if (masteredCount >= 13) {
+      rankTitle = '👑 Pandit / Vidwan (विद्वान गायक / Master Vocalist)';
+      rankBadge = 'Master';
+      rankColor = '#8B5CF6';
+      nextMilestone = `${18 - masteredCount} more lessons to reach Sur-Samrat`;
+    } else if (masteredCount >= 8) {
+      rankTitle = '🌟 Gayak (कुशल गायक / Skilled Classical Singer)';
+      rankBadge = 'Skilled Singer';
+      rankColor = '#10B981';
+      nextMilestone = `${13 - masteredCount} more lessons to reach Pandit/Vidwan`;
+    } else if (masteredCount >= 4) {
+      rankTitle = '🎶 Sadhak (सुर साधक / Dedicated Vocalist)';
+      rankBadge = 'Sadhak';
+      rankColor = '#38BDF8';
+      nextMilestone = `${8 - masteredCount} more lessons to reach Gayak rank`;
+    }
+
+    // Next recommended lesson to practice
+    const nextLesson = PRACTICE_LESSONS.find(l => {
+      const sc = scores[l.id];
+      return !sc || sc.bestAccuracy < 80;
+    }) || PRACTICE_LESSONS[0];
+
+    return {
+      masteredCount,
+      attemptedCount,
+      totalLessons,
+      masteryPercent,
+      rankTitle,
+      rankBadge,
+      rankColor,
+      nextMilestone,
+      nextLesson,
+    };
+  }, [singerProfile]);
+
+  // Filtered lessons list
+  const filteredLessons = useMemo(() => {
+    if (stageFilter === 'all') return PRACTICE_LESSONS;
+    return PRACTICE_LESSONS.filter(l => l.stageNumber === stageFilter);
+  }, [stageFilter]);
+
+  // Monitor microphone volume level during practice
   useEffect(() => {
-    if (stage === 'practicing' && activeBlock?.type === 'user' && currentPitch) {
-      // Map dB RMS (-60dB to 0dB) into 0.0 to 1.0
+    if (stage === 'practicing' && currentPitch) {
       const vol = Math.max(0, Math.min(1, (currentPitch.volumeDb + 52) / 45));
       setUserMicLevel(vol);
     } else {
       setUserMicLevel(0);
     }
-  }, [currentPitch, stage, activeBlock]);
+  }, [currentPitch, stage]);
 
   // Compute effective target notes
   const effectiveTargetNotes: LessonNote[] = useMemo(() => {
@@ -110,59 +235,39 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     return selectedLesson.targetNotes;
   }, [selectedLesson, customSaDuration]);
 
+  // Live breath hold tracking for Long Sa
+  const liveHeldSec = useMemo(() => {
+    if (!activeBlock || activeBlock.type !== 'user') return 0;
+    const pts = recordedPointsRef.current.filter(p => p.swaraId === activeBlock.swaraId && p.isInSur);
+    return Math.min(activeBlock.durationSec, Math.round(pts.length * 0.05 * 10) / 10);
+  }, [activeBlock]);
+
+  // Live pitch stability percentage
+  const liveStability = useMemo(() => {
+    if (!activeBlock || activeBlock.type !== 'user') return 100;
+    const pts = recordedPointsRef.current.filter(p => p.swaraId === activeBlock.swaraId);
+    if (pts.length === 0) return 100;
+    const inSur = pts.filter(p => p.isInSur).length;
+    return Math.round((inSur / pts.length) * 100);
+  }, [activeBlock]);
+
   // Compute target blocks for the scrolling highway:
-  // In listen_sing mode:
-  // 1. Assisted (Guru) note blocks (Saffron / Gold)
-  // 2. Continuous breath gap (1.4s) where upcoming user notes are already visible scrolling towards playhead!
-  // 3. User note blocks (Padhanisa Orange / Green)
+  // All blocks are user singing targets (1.0s lead-in for smooth highway entry)
   const targetBlocks: HighwayTargetBlock[] = useMemo(() => {
     const blocks: HighwayTargetBlock[] = [];
-
-    if (practiceMode === 'listen_sing') {
-      // Phase 1: Guru Guide Notes (1.0s lead-in)
-      let curSec = 1.0;
-      effectiveTargetNotes.forEach(n => {
-        blocks.push({
-          swaraId: n.swaraId,
-          startTimeSec: curSec,
-          durationSec: n.durationSec,
-          label: n.label,
-          type: 'assisted',
-        });
-        curSec += n.durationSec + 0.35;
+    let curSec = 1.0;
+    effectiveTargetNotes.forEach(n => {
+      blocks.push({
+        swaraId: n.swaraId,
+        startTimeSec: curSec,
+        durationSec: n.durationSec,
+        label: n.label,
+        type: 'user',
       });
-
-      // Breath transition gap (1.4s natural breathing space)
-      curSec += 1.4;
-
-      // Phase 2: User Notes (Padhanisa Orange / Green)
-      effectiveTargetNotes.forEach(n => {
-        blocks.push({
-          swaraId: n.swaraId,
-          startTimeSec: curSec,
-          durationSec: n.durationSec,
-          label: n.label,
-          type: 'user',
-        });
-        curSec += n.durationSec + 0.35;
-      });
-    } else {
-      // Direct Sing: User blocks only (1.0s lead-in)
-      let curSec = 1.0;
-      effectiveTargetNotes.forEach(n => {
-        blocks.push({
-          swaraId: n.swaraId,
-          startTimeSec: curSec,
-          durationSec: n.durationSec,
-          label: n.label,
-          type: 'user',
-        });
-        curSec += n.durationSec + 0.35;
-      });
-    }
-
+      curSec += n.durationSec + 0.5;
+    });
     return blocks;
-  }, [effectiveTargetNotes, practiceMode]);
+  }, [effectiveTargetNotes]);
 
   // Total duration of one complete round in seconds
   const totalRoundSec = useMemo(() => {
@@ -191,26 +296,21 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
         setActiveBlock(crossingBlock);
         setActiveBlockRemainingSec(Math.max(0, (crossingBlock.startTimeSec + crossingBlock.durationSec) - elapsedSec));
 
-        if (crossingBlock.type === 'assisted') {
-          // Guru is singing
-          setIsHitActive(true);
-        } else {
-          // User is singing! Evaluate pitch match against target swara
-          const isMatch = currentPitch && currentPitch.swara.id === crossingBlock.swaraId && currentPitch.isInSur;
-          setIsHitActive(!!isMatch);
+        // Evaluate pitch match against target swara
+        const isMatch = currentPitch && currentPitch.swara.id === crossingBlock.swaraId && currentPitch.isInSur;
+        setIsHitActive(!!isMatch);
 
-          // Record user singing data
-          if (currentPitch) {
-            const pt: RecordedPitchPoint = {
-              timeSec: elapsedSec,
-              frequency: currentPitch.frequency,
-              centsDeviation: currentPitch.centsDeviation,
-              isInSur: currentPitch.isInSur,
-              swaraId: currentPitch.swara.id,
-            };
-            recordedPointsRef.current.push(pt);
-            allSessionPointsRef.current.push(pt);
-          }
+        // Record user singing data
+        if (currentPitch) {
+          const pt: RecordedPitchPoint = {
+            timeSec: elapsedSec,
+            frequency: currentPitch.frequency,
+            centsDeviation: currentPitch.centsDeviation,
+            isInSur: currentPitch.isInSur,
+            swaraId: currentPitch.swara.id,
+          };
+          recordedPointsRef.current.push(pt);
+          allSessionPointsRef.current.push(pt);
         }
       } else {
         setActiveBlock(null);
@@ -231,8 +331,8 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [stage, exerciseStartTimeMs, targetBlocks, totalRoundSec, currentPitch]);
 
-  // Launch a round seamlessly (Starts Guru voice and continuous scroll)
-  const launchRound = (roundNum: number, mode: 'listen_sing' | 'direct_sing') => {
+  // Launch a round seamlessly
+  const launchRound = (roundNum: number) => {
     setCurrentRound(roundNum);
     recordedPointsRef.current = [];
     setActiveBlock(null);
@@ -242,36 +342,25 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
     const startT = performance.now();
     setExerciseStartTimeMs(startT);
-
-    if (mode === 'listen_sing') {
-      // Guru starts singing precisely at t = 1.0s when the Assisted block hits playhead!
-      guruVocalService.playDemonstration(
-        effectiveTargetNotes,
-        rootPitch.frequency,
-        () => {
-          // Guru finished demonstration; timeline continues seamlessly into User block
-        },
-        1000,
-        350
-      );
-    }
   };
 
   // Start entire multi-round practice session
-  const startFullPracticeSession = (mode: 'listen_sing' | 'direct_sing') => {
+  const startFullPracticeSession = () => {
     if (!isMicActive) onStartMic();
-    setPracticeMode(mode);
+    // Engage continuous background Tanpura drone for authentic classical atmosphere
+    if (autoTanpura && !isTanpuraActive && onToggleTanpura) {
+      onToggleTanpura();
+    }
     setRoundHistory([]);
     setAnalysis(null);
     setRoundToast(null);
     setNoteBreakdowns([]);
     allSessionPointsRef.current = [];
-    launchRound(1, mode);
+    launchRound(1);
   };
 
   // Handle completion of a single round
   const handleRoundComplete = () => {
-    guruVocalService.stop();
     setExerciseStartTimeMs(null);
     setIsHitActive(false);
     setActiveBlock(null);
@@ -312,16 +401,16 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
       if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
       roundTransitionTimeoutRef.current = window.setTimeout(() => {
         setRoundToast(null);
-        launchRound(nextR, practiceMode);
+        launchRound(nextR);
       }, 750);
     } else {
-      // Completed all 5 rounds! Compile comprehensive Riyaz Report
+      // Completed all rounds! Compile comprehensive Riyaz Report
       setRoundToast(null);
       finishFullSessionAnalysis(nextHistory);
     }
   };
 
-  // Compile final 5-round analysis report
+  // Compile final analysis report & save persistent mastery progress
   const finishFullSessionAnalysis = (completedRounds: RoundPerformance[]) => {
     setStage('analysis');
     setExerciseStartTimeMs(null);
@@ -384,18 +473,41 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     });
     setNoteBreakdowns(breakdowns);
 
+    // Save score in persistent profile
+    saveProfileUpdate(prev => {
+      const existing = prev.scores[selectedLesson.id];
+      const bestAcc = Math.max(existing?.bestAccuracy || 0, avgRoundAcc);
+      const bestStab = Math.max(existing?.bestStability || 0, avgRoundStab);
+      const roundsCount = (existing?.roundsCount || 0) + completedRounds.length;
+
+      return {
+        ...prev,
+        totalRoundsOverall: prev.totalRoundsOverall + completedRounds.length,
+        totalSingingSec: prev.totalSingingSec + Math.round(allPts.length * 0.05),
+        scores: {
+          ...prev.scores,
+          [selectedLesson.id]: {
+            bestAccuracy: bestAcc,
+            bestStability: bestStab,
+            roundsCount,
+            lastPracticedDate: new Date().toISOString(),
+          },
+        },
+      };
+    });
+
     let feedbackHindi = '';
     let feedbackEnglish = '';
     if (avgRoundAcc >= 85) {
-      feedbackHindi = `अद्भुत रियाज़! आपका स्वर बहुत सटीक (${avgRoundAcc}%) और स्थिर था।`;
-      feedbackEnglish = `Outstanding Riyaz! Your pitch adherence was remarkably pure (${avgRoundAcc}% in sur).`;
-      confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+      feedbackHindi = `अद्भुत साधना! आपकी सटीकता (${avgRoundAcc}%) उत्तम है। आपने इस पाठ में महारत (Mastery) हासिल कर ली है!`;
+      feedbackEnglish = `Outstanding vocal mastery! Your intonation (${avgRoundAcc}%) is exceptionally centered. Lesson Mastered!`;
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
     } else if (avgRoundAcc >= 65) {
-      feedbackHindi = `अच्छा प्रयास! सुर मिला (${avgRoundAcc}%), लेकिन थोड़ा सा ध्यान देने की आवश्यकता है।`;
-      feedbackEnglish = `Good singing! You maintained solid intonation (${avgRoundAcc}%). Keep practicing steady breath.`;
+      feedbackHindi = `अच्छा प्रयास (${avgRoundAcc}%)! स्वर मिल रहे हैं, लेकिन श्वास स्थिरता और नाभि आधार पर और अभ्यास करें।`;
+      feedbackEnglish = `Good progress (${avgRoundAcc}%)! Keep your vocal tract open and sustain breath from your diaphragm.`;
     } else {
-      feedbackHindi = `रियाज़ जारी रखें! गुरु के स्वर को ध्यान से सुनें और तालमेल बिठाएं।`;
-      feedbackEnglish = `Keep practicing! Listen closely to the Guru guide notes and match the pitch line.`;
+      feedbackHindi = `रियाज़ जारी रखें! तानपूरे के सुर को ध्यान से सुनें और पिच लाइन के केंद्र से तालमेल बिठाएं।`;
+      feedbackEnglish = `Keep practicing! Listen closely to the Tanpura drone harmonics and center your voice on the highway.`;
     }
 
     setAnalysis({
@@ -412,7 +524,6 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
   };
 
   const handleStopOrReset = () => {
-    guruVocalService.stop();
     if (roundTransitionTimeoutRef.current) clearTimeout(roundTransitionTimeoutRef.current);
     setStage('idle');
     setCurrentRound(1);
@@ -425,17 +536,8 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     setRoundToast(null);
     setAnalysis(null);
     setNoteBreakdowns([]);
-    setGuruAudioLevel(0);
     setUserMicLevel(0);
   };
-
-  const handleVoiceTimbreChange = (timbre: VoiceTimbre) => {
-    setVoiceTimbre(timbre);
-    guruVocalService.setVoiceTimbre(timbre);
-  };
-
-  const isAssistedPhase = activeBlock?.type === 'assisted';
-  const currentActiveLevel = isAssistedPhase ? guruAudioLevel : userMicLevel;
 
   // Format seconds to mm:ss
   const formatTime = (sec: number) => {
@@ -444,22 +546,72 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  // Stages configuration
+  const STAGES = [
+    { id: 'all' as const, num: 0, label: 'All Lessons', hindi: 'समस्त पाठ', count: 20 },
+    { id: 1, num: 1, label: 'Stage 1: Foundation', hindi: 'स्वर नींव', count: 4 },
+    { id: 2, num: 2, label: 'Stage 2: Shuddha Swar', hindi: 'शुद्ध स्वर', count: 4 },
+    { id: 3, num: 3, label: 'Stage 3: Intervals', hindi: 'स्वर छलांग', count: 3 },
+    { id: 4, num: 4, label: 'Stage 4: Vikrit', hindi: 'कोमल व तीव्र', count: 4 },
+    { id: 5, num: 5, label: 'Stage 5: Agility', hindi: 'पलटे व तान', count: 3 },
+    { id: 6, num: 6, label: 'Stage 6: Ragas', hindi: 'राग रस', count: 2 },
+  ];
+
   return (
     <div className="guru-practice-container">
-      {/* Top Header */}
-      <div className="guru-header-card">
-        <div className="guru-header-title">
-          <div className="icon-badge">🎧</div>
-          <div>
-            <h2>Listen & Sing Riyaz (सुनो और गाओ • ५ चक्र साधना)</h2>
-            <p>Padhanisa-style Call-and-Response: App sings first, then you sing. Repeats for 5 continuous rounds without interruptions.</p>
+      {/* ========================================================================= */}
+      {/* SINGER JOURNEY HERO DASHBOARD (कैरिकुलम व साधक प्रोफाइल) */}
+      {/* ========================================================================= */}
+      <div className="singer-journey-hero-card">
+        <div className="singer-hero-left">
+          <div className="singer-rank-badge" style={{ borderColor: masteryStats.rankColor }}>
+            <Award size={20} color={masteryStats.rankColor} />
+            <div className="singer-rank-text">
+              <span className="rank-label">SINGER LEVEL / साधक स्तर</span>
+              <h3 style={{ color: masteryStats.rankColor }}>{masteryStats.rankTitle}</h3>
+            </div>
+          </div>
+
+          <div className="singer-progress-bar-wrap">
+            <div className="progress-info-row">
+              <span className="progress-text">
+                <strong>{masteryStats.masteredCount}</strong> of <strong>{masteryStats.totalLessons}</strong> Lessons Mastered (80%+ Sur)
+              </span>
+              <span className="progress-percent" style={{ color: masteryStats.rankColor }}>
+                {masteryStats.masteryPercent}% Complete
+              </span>
+            </div>
+            <div className="singer-progress-track">
+              <div
+                className="singer-progress-fill"
+                style={{
+                  width: `${masteryStats.masteryPercent}%`,
+                  backgroundColor: masteryStats.rankColor,
+                }}
+              />
+            </div>
+            <span className="milestone-hint">⚡ {masteryStats.nextMilestone}</span>
           </div>
         </div>
 
-        {stage !== 'idle' && (
-          <button className="reset-pipeline-btn" onClick={handleStopOrReset}>
-            <RotateCcw size={16} /> Stop Practice
-          </button>
+        {/* Hero Right: Next Recommended Lesson Quick-Action */}
+        {stage === 'idle' && (
+          <div className="singer-hero-right">
+            <div className="next-lesson-box">
+              <span className="next-tag"><Flame size={14} /> RECOMMENDED NEXT LESSON</span>
+              <h4 className="next-title">{masteryStats.nextLesson.title}</h4>
+              <span className="next-stage">{masteryStats.nextLesson.stageHindi}</span>
+              <button
+                className="next-lesson-btn"
+                onClick={() => {
+                  setSelectedLesson(masteryStats.nextLesson);
+                  window.scrollTo({ top: 380, behavior: 'smooth' });
+                }}
+              >
+                <span>Select This Lesson</span> <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -473,14 +625,9 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                 <Sparkles size={14} /> RIYAZ HIGHWAY READY ({totalRounds} ROUNDS)
               </span>
             )}
-            {stage === 'practicing' && isAssistedPhase && (
-              <span className="stage-pill demo animate-pulse">
-                <Headphones size={14} /> 1. GURU GUIDE (सुनिए) • ROUND {currentRound}/{totalRounds}
-              </span>
-            )}
-            {stage === 'practicing' && !isAssistedPhase && activeBlock && (
+            {stage === 'practicing' && activeBlock && (
               <span className="stage-pill sing animate-pulse">
-                <Mic size={14} /> 2. YOUR TURN (गाइए!) • ROUND {currentRound}/{totalRounds}
+                <Mic size={14} /> YOUR TURN: Sing "{activeBlock.label}" • ROUND {currentRound}/{totalRounds}
               </span>
             )}
             {stage === 'practicing' && !activeBlock && (
@@ -490,32 +637,31 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
             )}
             {stage === 'analysis' && (
               <span className="stage-pill analysis">
-                <BarChart3 size={14} /> 3. {totalRounds}-ROUND RIYAZ ANALYSIS REPORT
+                <BarChart3 size={14} /> {totalRounds}-ROUND RIYAZ ANALYSIS REPORT
               </span>
             )}
 
             <span className="arena-active-lesson-name">
-              {selectedLesson.hindiTitle} • {selectedLesson.title}
+              {selectedLesson.hindiTitle} • {selectedLesson.title} (Sa: {rootPitch.note}{rootPitch.octave})
             </span>
           </div>
 
           {/* Practice Settings Controls (when idle) */}
           {stage === 'idle' && (
             <div className="arena-config-cluster">
-              {/* Voice Timbre Selector */}
-              <div className="config-item">
-                <span className="config-label"><Volume2 size={12} /> Guru Voice:</span>
-                <select
-                  className="voice-select-dropdown"
-                  value={voiceTimbre}
-                  onChange={(e) => handleVoiceTimbreChange(e.target.value as VoiceTimbre)}
-                >
-                  <option value="male_vocal">🎙️ Classical Male Voice (शास्त्रीय पुरुष स्वर)</option>
-                  <option value="female_vocal">🎙️ Classical Female Voice (स्त्री स्वर)</option>
-                  <option value="bansuri">🪈 Bamboo Bansuri (बांसुरी)</option>
-                  <option value="harmonium">🎻 Acoustic Harmonium (हारमोनियम)</option>
-                </select>
-              </div>
+              {/* Tanpura Drone Toggle for Authentic Classical Ambience */}
+              {onToggleTanpura && (
+                <div className="config-item">
+                  <button
+                    className={`tanpura-drone-chip ${isTanpuraActive ? 'active' : ''}`}
+                    onClick={onToggleTanpura}
+                    title="Toggle continuous background Tanpura drone for traditional riyaz"
+                  >
+                    <Sparkles size={12} />
+                    <span>Tanpura Drone: {isTanpuraActive ? 'ON (सुर चालू)' : 'OFF'}</span>
+                  </button>
+                </div>
+              )}
 
               {/* Rounds Selector (Padhanisa 5-Rounds Default) */}
               <div className="config-item">
@@ -537,16 +683,18 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                 </div>
               </div>
 
-              {/* Sa Duration Selector for Lesson 1 */}
+              {/* Sa Duration Selector for Lesson 1 (Padhanisa Long Sa Sthirata) */}
               {selectedLesson.id === 'lesson_sa' && (
                 <div className="config-item">
                   <span className="config-label">Sa Hold:</span>
                   <div className="sa-dur-btns">
                     {[
-                      { dur: 3.0, label: '3s' },
                       { dur: 4.0, label: '4s' },
-                      { dur: 6.0, label: '6s' },
+                      { dur: 6.0, label: '6s ⭐' },
                       { dur: 8.0, label: '8s' },
+                      { dur: 10.0, label: '10s' },
+                      { dur: 12.0, label: '12s (खरज)' },
+                      { dur: 16.0, label: '16s (साधना)' },
                     ].map(({ dur, label }) => (
                       <button
                         key={dur}
@@ -572,9 +720,9 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
               exerciseStartTimeMs={exerciseStartTimeMs}
               stage={stage}
               isHitActive={isHitActive}
-              audioLevel={currentActiveLevel}
+              audioLevel={userMicLevel}
               totalRoundSec={totalRoundSec}
-              isUserTurn={activeBlock?.type === 'user'}
+              isUserTurn={stage === 'practicing'}
             />
 
             {/* Non-blocking Floating Toast for Seamless Round Transitions */}
@@ -587,7 +735,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
             {/* Padhanisa-style Lyrics / Syllable Subtitle Card */}
             <div className="highway-subtitles-card">
               <div className="subtitle-main-row">
-                <span className={`subtitle-active-syllable ${isAssistedPhase ? 'gold-theme' : isHitActive ? 'green-theme' : 'orange-theme'}`}>
+                <span className={`subtitle-active-syllable ${isHitActive ? 'green-theme' : activeBlock ? 'orange-theme' : ''}`}>
                   {activeBlock ? activeBlock.label : '...'}
                 </span>
                 <span className="subtitle-devanagari">
@@ -595,10 +743,8 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                 </span>
               </div>
               <div className="subtitle-hint-pill">
-                {isAssistedPhase ? (
-                  <span className="pill-gold">🎧 Guru is Singing (Listen closely to the pitch)</span>
-                ) : activeBlock ? (
-                  <span className="pill-green">🎤 Sing into microphone now ({activeBlockRemainingSec.toFixed(1)}s left)</span>
+                {activeBlock ? (
+                  <span className="pill-green">🎤 Sing "{activeBlock.label}" into microphone ({activeBlockRemainingSec.toFixed(1)}s left)</span>
                 ) : (
                   <span className="pill-blue">👀 Take a breath... Next note arriving!</span>
                 )}
@@ -629,59 +775,76 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
           <div className="live-vocal-meter-card">
             <div className="meter-header">
               <span className="meter-title">
-                {isAssistedPhase ? '🎙️ GURU HUMAN VOICE LEVEL' : activeBlock ? '🎤 YOUR MICROPHONE INPUT LEVEL' : '🔊 AUDIO MONITOR'}
+                {stage === 'practicing' ? '🎤 YOUR MICROPHONE INPUT LEVEL' : '🔊 MICROPHONE MONITOR'}
               </span>
-              <span className="meter-percent">{(currentActiveLevel * 100).toFixed(0)}%</span>
+              <span className="meter-percent">{(userMicLevel * 100).toFixed(0)}%</span>
             </div>
 
             <div className="meter-led-bar-track">
               {Array.from({ length: 24 }).map((_, i) => {
                 const threshold = (i + 1) / 24;
-                const isLit = currentActiveLevel >= threshold;
+                const isLit = userMicLevel >= threshold;
                 const isHigh = i >= 18;
                 const isMid = i >= 12 && i < 18;
                 return (
                   <div
                     key={i}
-                    className={`meter-segment ${isLit ? (isAssistedPhase ? 'lit-gold' : isHigh ? 'lit-red' : isMid ? 'lit-amber' : 'lit-green') : ''}`}
+                    className={`meter-segment ${isLit ? (isHigh ? 'lit-red' : isMid ? 'lit-amber' : 'lit-green') : ''}`}
                   />
                 );
               })}
             </div>
 
             <div className="meter-footer-hint">
-              {isAssistedPhase && (
-                <span>App is demonstrating vocal resonance with acoustic human voice synthesis.</span>
-              )}
-              {!isAssistedPhase && activeBlock && (
+              {stage === 'practicing' && activeBlock && (
                 userMicLevel < 0.12
                   ? <span className="warning-text">⚠️ Voice level is low — please sing louder or move closer to the mic.</span>
                   : <span className="success-text">✨ Clean vocal volume detected! Keep steady breath.</span>
               )}
               {stage === 'idle' && (
-                <span>Ready to begin {totalRounds} Call-and-Response practice rounds.</span>
+                <span>Ready to begin {totalRounds}-round Riyaz practice. Tanpura drone accompanies your pitch.</span>
               )}
             </div>
           </div>
         )}
 
-        {/* Action Buttons Footer (when idle) */}
+        {/* Vocal Technique & Guru Guidance Card (Idle state before singing) */}
+        {stage === 'idle' && selectedLesson.technique && (
+          <div className="lesson-technique-guidance-card">
+            <div className="technique-header">
+              <BookOpen size={18} className="text-amber" />
+              <h4>Vocal Technique Guidance (रियाज़ व गायकी मार्गदर्शन)</h4>
+              <span className="technique-stage-badge">{selectedLesson.stageHindi}</span>
+            </div>
+
+            <div className="technique-grid">
+              <div className="tech-box">
+                <span className="tech-title"><Zap size={14} /> Voice Placement (स्वर संधान):</span>
+                <p>{selectedLesson.technique.focusArea}</p>
+              </div>
+
+              <div className="tech-box">
+                <span className="tech-title"><Flame size={14} /> Breath Support (श्वास आधार):</span>
+                <p>{selectedLesson.technique.breathPlacement}</p>
+              </div>
+
+              <div className="tech-box full-width">
+                <span className="tech-title"><Sparkles size={14} /> Guru's Secret (साधना का रहस्य):</span>
+                <p className="secret-tip-text">"{selectedLesson.technique.secretTip}"</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Button Footer (when idle) */}
         {stage === 'idle' && (
           <div className="arena-idle-action-footer">
             <div className="action-buttons-group">
-              <button className="primary-action-btn listen-sing" onClick={() => startFullPracticeSession('listen_sing')}>
-                <Headphones size={20} />
+              <button className="primary-action-btn single-full-btn" onClick={startFullPracticeSession}>
+                <Mic size={22} />
                 <div className="btn-text-col">
-                  <span className="btn-main-text">Start {totalRounds}-Round Practice (सुनो और गाओ)</span>
-                  <span className="btn-sub-text">App sings first, then you sing • {totalRounds} continuous rounds</span>
-                </div>
-              </button>
-
-              <button className="secondary-action-btn direct-sing" onClick={() => startFullPracticeSession('direct_sing')}>
-                <Mic size={18} />
-                <div className="btn-text-col">
-                  <span className="btn-main-text">Direct Sing ({totalRounds} Rounds)</span>
-                  <span className="btn-sub-text">Skip demo and sing directly</span>
+                  <span className="btn-main-text">Start {totalRounds}-Round Riyaz (रियाज़ शुरू करें)</span>
+                  <span className="btn-sub-text">Sing directly on the pitch highway • {totalRounds} continuous rounds with live feedback</span>
                 </div>
               </button>
             </div>
@@ -706,12 +869,29 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                 </span>
               </div>
 
-              <div className="strip-metric">
-                <span className="strip-metric-title">Note Hold Remaining</span>
-                <span className="strip-metric-val">
-                  {activeBlock ? `${activeBlockRemainingSec.toFixed(1)}s` : '--'}
-                </span>
-              </div>
+              {selectedLesson.id === 'lesson_sa' && activeBlock?.type === 'user' ? (
+                <div className="strip-metric breath-hold-metric">
+                  <span className="strip-metric-title">Breath Held (श्वास स्थिरता)</span>
+                  <div className="breath-hold-val-wrap">
+                    <span className="strip-metric-val highlight" style={{ color: '#22C55E' }}>
+                      {liveHeldSec.toFixed(1)}s / {activeBlock.durationSec}s
+                    </span>
+                    <div className="mini-breath-bar">
+                      <div
+                        className="mini-breath-fill"
+                        style={{ width: `${Math.min(100, (liveHeldSec / activeBlock.durationSec) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="strip-metric">
+                  <span className="strip-metric-title">Note Hold Remaining</span>
+                  <span className="strip-metric-val">
+                    {activeBlock ? `${activeBlockRemainingSec.toFixed(1)}s` : '--'}
+                  </span>
+                </div>
+              )}
 
               <div className="strip-metric">
                 <span className="strip-metric-title">Your Live Pitch</span>
@@ -729,6 +909,21 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
                   {isHitActive ? '✨ IN SUR!' : currentPitch ? `${currentPitch.centsDeviation > 0 ? '+' : ''}${currentPitch.centsDeviation}¢` : '--'}
                 </span>
               </div>
+
+              {selectedLesson.id === 'lesson_sa' && activeBlock?.type === 'user' && (
+                <div className="strip-metric">
+                  <span className="strip-metric-title">Stability (स्थिरता)</span>
+                  <span className="strip-metric-val" style={{ color: liveStability >= 80 ? '#22C55E' : '#F59E0B' }}>
+                    {liveStability}%
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="stop-practice-bar">
+              <button className="reset-pipeline-btn" onClick={handleStopOrReset}>
+                <RotateCcw size={16} /> Stop Practice & Return to Menu
+              </button>
             </div>
           </div>
         )}
@@ -800,7 +995,7 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
             {/* Feedback Message */}
             <div className="analysis-feedback-card">
-              <span className="feedback-badge">Guru Guidance (गुरु का मार्गदर्शन)</span>
+              <span className="feedback-badge">Riyaz Guidance (मार्गदर्शन)</span>
               <p className="feedback-hindi">{analysis.feedbackHindi}</p>
               <p className="feedback-english">{analysis.feedbackEnglish}</p>
             </div>
@@ -838,39 +1033,84 @@ export const GuruLessonPractice: React.FC<GuruLessonPracticeProps> = ({
 
             {/* Action Buttons */}
             <div className="analysis-actions-row">
-              <button className="primary-action-btn listen-sing" onClick={() => startFullPracticeSession('listen_sing')}>
-                <RotateCcw size={18} /> Practice Again (५ चक्र पुनः अभ्यास)
+              <button className="primary-action-btn" onClick={startFullPracticeSession}>
+                <RotateCcw size={18} /> Practice Again ({totalRounds} चक्र पुनः अभ्यास)
               </button>
-              <button className="secondary-action-btn direct-sing" onClick={() => startFullPracticeSession('direct_sing')}>
-                <Mic size={18} /> Direct Sing Only
+
+              <button className="secondary-action-btn" onClick={handleStopOrReset}>
+                <BookOpen size={18} /> Select Another Lesson (पाठ सूची)
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Lesson Selection Cards (when idle) */}
+      {/* ========================================================================= */}
+      {/* 20-LESSON VOCAL MASTERY CURRICULUM GRID (when idle) */}
+      {/* ========================================================================= */}
       {stage === 'idle' && (
         <div className="practice-lessons-section">
           <div className="section-title-row">
-            <h3>Choose a Riyaz Lesson (अभ्यास चुनें)</h3>
-            <span className="lesson-count-tag">{PRACTICE_LESSONS.length} Guided Lessons</span>
+            <div>
+              <h3>Singer Mastery Curriculum (सम्पूर्ण गायकी पाठ्यक्रम)</h3>
+              <p className="section-subtext">
+                Master all 6 stages from breath stability to classical raga phrases to build an agile, pitch-perfect singing voice.
+              </p>
+            </div>
+            <span className="lesson-count-tag">{PRACTICE_LESSONS.length} Master Lessons</span>
           </div>
 
+          {/* Stage Filter Chips */}
+          <div className="stage-filter-row">
+            {STAGES.map(st => {
+              const isActive = stageFilter === (st.id === 'all' ? 'all' : st.num);
+              return (
+                <button
+                  key={st.id}
+                  className={`stage-filter-chip ${isActive ? 'active' : ''}`}
+                  onClick={() => setStageFilter(st.id === 'all' ? 'all' : st.num)}
+                >
+                  <span className="stage-chip-title">{st.label}</span>
+                  <span className="stage-chip-hindi">{st.hindi}</span>
+                  <span className="stage-chip-count">{st.count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Lessons Grid */}
           <div className="lessons-grid">
-            {PRACTICE_LESSONS.map((lesson) => {
+            {filteredLessons.map((lesson) => {
               const isSelected = selectedLesson.id === lesson.id;
+              const saved = singerProfile.scores[lesson.id];
+              const isMastered = saved && saved.bestAccuracy >= 80;
+              const isRecommended = masteryStats.nextLesson.id === lesson.id;
+
               return (
                 <div
                   key={lesson.id}
-                  className={`lesson-card ${isSelected ? 'selected' : ''}`}
+                  className={`lesson-card ${isSelected ? 'selected' : ''} ${isMastered ? 'mastered' : ''} ${isRecommended ? 'recommended-glow' : ''}`}
                   onClick={() => setSelectedLesson(lesson)}
                 >
                   <div className="lesson-card-header">
-                    <span className="lesson-badge-category">{lesson.category}</span>
-                    <span className={`lesson-difficulty-badge ${lesson.level.toLowerCase()}`}>
-                      {lesson.level}
-                    </span>
+                    <span className="lesson-badge-category">{lesson.stageHindi}</span>
+                    <div className="header-badges-right">
+                      {isMastered ? (
+                        <span className="mastery-star-badge" title="Mastered (80%+ Accuracy)">
+                          <Star size={12} fill="#F59E0B" color="#F59E0B" /> Mastered
+                        </span>
+                      ) : saved ? (
+                        <span className="practiced-badge">
+                          Best: {saved.bestAccuracy}%
+                        </span>
+                      ) : isRecommended ? (
+                        <span className="recommended-badge">Next Step</span>
+                      ) : (
+                        <span className={`lesson-difficulty-badge ${lesson.level.toLowerCase()}`}>
+                          {lesson.level}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <h4 className="lesson-title">{lesson.title}</h4>

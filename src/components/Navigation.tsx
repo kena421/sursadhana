@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Headphones, Music2, Volume2, Award, Target } from 'lucide-react';
+import { Mic, Sparkles, Music2, Volume2, Award, Target } from 'lucide-react';
 
 export type ActiveTab = 'studio' | 'practice' | 'alankars' | 'tanpura' | 'taal' | 'calibrator';
 
@@ -20,7 +20,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'studio' as ActiveTab, label: 'Studio (रियाज़)', icon: <Mic size={18} />, badge: isMicActive ? 'MIC ON' : undefined },
-    { id: 'practice' as ActiveTab, label: 'Listen & Sing (पाठ)', icon: <Headphones size={18} /> },
+    { id: 'practice' as ActiveTab, label: 'Swara Riyaz (साधना)', icon: <Sparkles size={18} /> },
     { id: 'alankars' as ActiveTab, label: 'Alankars (अलंकार)', icon: <Award size={18} /> },
     { id: 'tanpura' as ActiveTab, label: 'Tanpura (तानपूरा)', icon: <Music2 size={18} />, badge: isTanpuraActive ? 'PLAYING' : undefined },
     { id: 'taal' as ActiveTab, label: 'Taal (ताल)', icon: <Volume2 size={18} />, badge: isTaalActive ? 'BEAT' : undefined },
