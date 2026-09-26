@@ -145,23 +145,31 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
       }
 
       const dpr = window.devicePixelRatio || 1;
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
+      const width = canvas.clientWidth || 800;
+      const height = canvas.clientHeight || 290;
 
-      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
+      if (width === 0 || height === 0) {
+        animRef.current = requestAnimationFrame(render);
+        return;
       }
 
-      ctx.save();
+      if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+      }
+
+      // Explicitly reset the transform matrix to identity on every frame before scaling by DPR
+      // Prevents exponential scale accumulation that previously broke rendering
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
 
-      // 1. Deep Obsidian Pitch Black Background (like Padhanisa)
-      ctx.fillStyle = '#05070D';
-      ctx.fillRect(0, 0, width, height);
+      try {
+        // 1. Deep Obsidian Pitch Black Background (like Padhanisa)
+        ctx.fillStyle = '#05070D';
+        ctx.fillRect(0, 0, width, height);
 
-      const totalLanes = SWARAS.length;
-      const laneHeight = height / totalLanes;
+        const totalLanes = SWARAS.length;
+        const laneHeight = height / totalLanes;
 
       // 2. Draw Horizontal Swara Grid Lanes
       for (let i = 0; i < totalLanes; i++) {
@@ -857,6 +865,12 @@ export const NoteHighwayCanvas: React.FC<NoteHighwayCanvasProps> = ({
         ctx.fill();
         ctx.restore();
       }
+    } catch (err) {
+      console.error('NoteHighwayCanvas render loop error:', err);
+    } finally {
+      // Always reset transform matrix cleanly
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
 
       animRef.current = requestAnimationFrame(render);
     };
